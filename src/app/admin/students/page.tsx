@@ -48,9 +48,9 @@ export default function StudentsPage() {
         const data = await response.json()
         // Map data từ BeInfo sang Student (adjust nếu cần)
         const mappedStudents: Student[] = data.map((be: any) => ({
-          id: be.stt.toString(),  // Dùng stt làm id
+          id: be.sbd.toString(),  // Dùng sbd làm id
           name: be.name,
-          studentCode: be.stt.toString().padStart(3, '0'),  // Ví dụ: 001 cho stt=1
+          studentCode: be.sbd.toString().padStart(3, '0'),  // Ví dụ: 001 cho sbd=1
           class: be.lop,
           dateOfBirth: be.dob,
           createdAt: be.created_at || new Date().toISOString(),
@@ -69,7 +69,7 @@ export default function StudentsPage() {
   const handleAddStudent = async () => {
     try {
       const newStudentData = {
-        stt: students.length + 1,  // Tự generate stt (hoặc từ backend)
+        sbd: students.length + 1,  // Tự generate sbd (hoặc từ backend)
         name: formData.name,
         gender: 'Nam',  // Default, adjust nếu cần
         age: 0,  // Default
@@ -98,7 +98,7 @@ export default function StudentsPage() {
     if (!selectedStudent) return
     try {
       const updatedData = {
-        stt: parseInt(selectedStudent.id),
+        sbd: parseInt(selectedStudent.id),
         name: formData.name,
         gender: 'Nam',  // Adjust nếu có field gender
         age: 0,

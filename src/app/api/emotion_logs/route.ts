@@ -49,11 +49,12 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Thêm / Upsert danh sách cảm xúc
+// POST: Thêm cảm xúc mới (tối đa 2 lần mỗi ngày: morning/afternoon)
 export async function POST(request: NextRequest) {
   let connection;
   try {
     const { emotions }: { emotions: { child_id: number; child_name: string; class_name: string; emotion: string; date: string }[] } = await request.json();
+    console.log("Received POST data:", emotions);
 
     if (!emotions || !Array.isArray(emotions)) {
       return NextResponse.json({ error: "Dữ liệu emotions không hợp lệ" }, { status: 400 });
@@ -71,12 +72,43 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Thiếu thông tin bắt buộc" }, { status: 400 });
       }
 
-      // Find emotion_id based on emotion label
+      // Kiểm tra số lần chọn cảm xúc trong ngày
+      const [existingRows] = await connection.execute<EmotionLog[]>(
+        "SELECT session FROM emotion_logs WHERE child_id = ? AND date = ?",
+        [child_id, date]
+      );
+      console.log("Existing rows for child_id and date:", existingRows);
+      if (existingRows.length >= 2) {
+        await connection.rollback();
+        return NextResponse.json(
+          { error: `Bé đã chọn đủ 2 cảm xúc trong ngày ${date}` },
+          { status: 409 }
+        );
+      }
+
+      // Xác định session
+      const session = existingRows.length === 0 ? "morning" : "afternoon";
+      console.log("Assigned session:", session);
+
+      // Kiểm tra xem session đã tồn tại chưa
+      const [sessionRows] = await connection.execute<EmotionLog[]>(
+        "SELECT id FROM emotion_logs WHERE child_id = ? AND date = ? AND session = ?",
+        [child_id, date, session]
+      );
+      if (sessionRows.length > 0) {
+        await connection.rollback();
+        return NextResponse.json(
+          { error: `Bé đã chọn cảm xúc cho buổi ${session === "morning" ? "sáng" : "chiều"} trong ngày ${date}` },
+          { status: 409 }
+        );
+      }
+
+      // Tìm emotion_id
       const [emotionRows] = await connection.execute<Emotion[]>(
         "SELECT id FROM emotions WHERE label = ?",
         [emotion]
       );
-
+      console.log("Emotion rows:", emotionRows);
       if (emotionRows.length === 0) {
         await connection.rollback();
         return NextResponse.json({ error: `Không tìm thấy cảm xúc: ${emotion}` }, { status: 404 });
@@ -84,24 +116,22 @@ export async function POST(request: NextRequest) {
 
       const emotion_id = emotionRows[0].id;
 
+      // Thêm bản ghi mới
       await connection.execute(
-        `INSERT INTO emotion_logs (child_id, child_name, class_name, emotion_id, date) 
-         VALUES (?, ?, ?, ?, ?) 
-         ON DUPLICATE KEY UPDATE 
-         child_name = VALUES(child_name),
-         class_name = VALUES(class_name),
-         emotion_id = VALUES(emotion_id),
-         date = VALUES(date)`,
-        [child_id, child_name, class_name, emotion_id, date]
+        `INSERT INTO emotion_logs (child_id, child_name, class_name, emotion_id, date, session, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+        [child_id, child_name, class_name, emotion_id, date, session]
       );
+      console.log("Inserted emotion log for:", { child_id, date, session });
     }
 
     await connection.commit();
+    console.log("Transaction committed");
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (connection) await connection.rollback();
     console.error("❌ Lỗi POST emotion_logs:", error);
-    return NextResponse.json({ error: "Lỗi lưu dữ liệu" }, { status: 500 });
+    if (connection) await connection.rollback();
+    return NextResponse.json({ error: `Lỗi lưu dữ liệu:` }, { status: 500 });
   } finally {
     if (connection) connection.release();
   }

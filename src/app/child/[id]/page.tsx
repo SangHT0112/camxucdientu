@@ -8,13 +8,43 @@ import { useRouter, useParams } from "next/navigation"
 import type { BeInfo } from "@/types/BeInfo"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
-const emotions = [
-  { icon: Smile, label: "Vui vẻ", color: "bg-yellow-400 hover:bg-yellow-500", emoji: "😊" },
-  { icon: Heart, label: "Yêu thích", color: "bg-pink-400 hover:bg-pink-500", emoji: "😍" },
-  { icon: Meh, label: "Bình thường", color: "bg-blue-400 hover:bg-blue-500", emoji: "😐" },
-  { icon: Frown, label: "Buồn", color: "bg-purple-400 hover:bg-purple-500", emoji: "😢" },
-  { icon: Angry, label: "Khó chịu", color: "bg-red-400 hover:bg-red-500", emoji: "😠" },
-]
+
+// Icon mapping để ánh xạ từ label sang icon
+const iconMap = {
+  "Vui vẻ": Smile,
+  "Yêu thích": Heart,
+  "Bình thường": Meh,
+  "Buồn": Frown,
+  "Khó chịu": Angry,
+}
+
+// Color mapping cho các emotion
+const colorMap = {
+  "Vui vẻ": "bg-yellow-400 hover:bg-yellow-500",
+  "Yêu thích": "bg-pink-400 hover:bg-pink-500", 
+  "Bình thường": "bg-blue-400 hover:bg-blue-500",
+  "Buồn": "bg-purple-400 hover:bg-purple-500",
+  "Khó chịu": "bg-red-400 hover:bg-red-500",
+}
+
+// Emoji mapping
+const emojiMap = {
+  "Vui vẻ": "😊",
+  "Yêu thích": "😍",
+  "Bình thường": "😐",
+  "Buồn": "😢",
+  "Khó chịu": "😠",
+}
+
+interface Emotion {
+  id: number
+  label: string
+  message: string
+  audio: string
+  image: string
+  created_at: string
+  updated_at: string
+}
 
 interface EmotionLog {
   id: number
@@ -23,6 +53,7 @@ interface EmotionLog {
   class_name: string
   emotion: string
   date: string // YYYY-MM-DD
+  session: "morning" | "afternoon"
   created_at: string // ISO
 }
 
@@ -36,43 +67,33 @@ export default function ChildGreeting() {
     lop: "",
     photo: "/happy-preschool-child.jpg",
   })
-  const [dailyEmotions, setDailyEmotions] = useState<{ [key: string]: number }>({}) // Tổng hợp vui/buồn hôm nay
+  const [emotions, setEmotions] = useState<Emotion[]>([])
+  const [dailyEmotions, setDailyEmotions] = useState<{ [key: string]: { morning: number; afternoon: number } }>({})
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const emotionFeedback: {
-    [key: string]: {
-      message: string
-      audio: string
-      image: string // Thêm thuộc tính image
+  // Load emotions từ database
+  useEffect(() => {
+    const loadEmotions = async () => {
+      try {
+        const response = await fetch("/api/emotions")
+        if (response.ok) {
+          const emotionsData: Emotion[] = await response.json()
+          console.log("Loaded emotions:", emotionsData)
+          setEmotions(emotionsData)
+        } else {
+          console.error("Lỗi load emotions từ API")
+        }
+      } catch (error) {
+        console.error("Lỗi load emotions:", error)
+      } finally {
+        setLoading(false)
+      }
     }
-  } = {
-    "Vui vẻ": {
-      message: "Con đang vui lắm đúng không?",
-      audio: "/audio/happy.mp3",
-      image: "/images/happy.png",
-    },
-    "Yêu thích": {
-      message: "Con đang thích thú điều gì thế?",
-      audio: "/audio/love.mp3",
-      image: "/images/love.png",
-    },
-    "Bình thường": {
-      message: "Con thấy bình thường thôi hả?",
-      audio: "/audio/neutral.mp3",
-      image: "/images/neutral.png",
-    },
-    "Buồn": {
-      message: "Con đang buồn sao?",
-      audio: "/audio/sad.mp3",
-      image: "/images/sad.png",
-    },
-    "Khó chịu": {
-      message: "Con đang khó chịu à?",
-      audio: "/audio/angry.mp3",
-      image: "/images/angry.png",
-    },
-  }
+    loadEmotions()
+  }, [])
+
   // Load thông tin bé từ MySQL
   useEffect(() => {
     const loadChild = async () => {
@@ -103,7 +124,7 @@ export default function ChildGreeting() {
       const saved = localStorage.getItem("beList")
       if (saved) {
         const parsed = JSON.parse(saved) as BeInfo[]
-        const be = parsed.find((b) => b.stt.toString() === id)
+        const be = parsed.find((b) => b.sbd.toString() === id)
         if (be) {
           setChild({
             name: be.name,
@@ -138,9 +159,12 @@ export default function ChildGreeting() {
         const response = await fetch(`/api/emotion_logs?child_id=${params.id}&date=${today}`)
         if (response.ok) {
           const logs: EmotionLog[] = await response.json()
-          const summary: { [key: string]: number } = {}
+          const summary: { [key: string]: { morning: number; afternoon: number } } = {}
           logs.forEach((log) => {
-            summary[log.emotion] = (summary[log.emotion] || 0) + 1
+            if (!summary[log.emotion]) {
+              summary[log.emotion] = { morning: 0, afternoon: 0 }
+            }
+            summary[log.emotion][log.session] = (summary[log.emotion][log.session] || 0) + 1
           })
           setDailyEmotions(summary)
           console.log("Daily emotions:", summary)
@@ -154,15 +178,25 @@ export default function ChildGreeting() {
 
   // Lưu cảm xúc mới vào MySQL
   const handleEmotionSelect = async (index: number) => {
+    console.log("handleEmotionSelect called with index:", index)
+    if (loading || !emotions[index]) {
+      console.log("Cannot select emotion, loading:", loading, "emotion exists:", !!emotions[index])
+      return
+    }
+
     setSelectedEmotion(index)
+    setIsModalOpen(true)
+    console.log("Setting isModalOpen to true")
+
     const now = new Date()
     const emotionData = {
       child_id: Number(params.id),
       child_name: child.name,
       class_name: child.lop,
       emotion: emotions[index].label,
-      date: now.toISOString().split("T")[0], // YYYY-MM-DD
+      date: now.toISOString().split("T")[0],
     }
+    console.log("Sending emotionData:", emotionData)
 
     try {
       const response = await fetch("/api/emotion_logs", {
@@ -171,38 +205,59 @@ export default function ChildGreeting() {
         body: JSON.stringify({ emotions: [emotionData] }),
       })
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.error || `API error: ${response.status}`)
       }
+      console.log("Emotion saved successfully")
 
       // Reload summary
       const today = emotionData.date
-      const responseReload = await fetch(`/api/emotions?child_id=${params.id}&date=${today}`)
+      const responseReload = await fetch(`/api/emotion_logs?child_id=${params.id}&date=${today}`)
       if (responseReload.ok) {
         const logs: EmotionLog[] = await responseReload.json()
-        const summary: { [key: string]: number } = {}
+        const summary: { [key: string]: { morning: number; afternoon: number } } = {}
         logs.forEach((log) => {
-          summary[log.emotion] = (summary[log.emotion] || 0) + 1
+          if (!summary[log.emotion]) {
+            summary[log.emotion] = { morning: 0, afternoon: 0 }
+          }
+          summary[log.emotion][log.session] = (summary[log.emotion][log.session] || 0) + 1
         })
         setDailyEmotions(summary)
+        console.log("Daily emotions updated:", summary)
       }
 
-      // Mở modal và phát âm thanh
-      setIsModalOpen(true)
-      const emotionLabel = emotions[index].label
-      const audioFile = emotionFeedback[emotionLabel].audio
+      // Phát âm thanh
+      const audioFile = emotions[index].audio
       const newAudio = new Audio(audioFile)
       setAudio(newAudio)
       newAudio.play().catch((error) => console.error("Lỗi phát âm thanh:", error))
-
-      // alert(`Cảm ơn bé ${child.name} đã chia sẻ cảm xúc! ${emotions[index].emoji}`)
     } catch (error) {
       console.error("Lỗi lưu emotion:", error)
-      alert("Lỗi lưu cảm xúc! Kiểm tra kết nối.")
+      alert(`Lỗi lưu cảm xúc:`)
     }
   }
 
   const handleBack = () => {
     router.push("/")
+  }
+
+  // Hàm helper để lấy icon, color và emoji dựa trên label
+  const getEmotionDisplayProps = (label: string) => {
+    const IconComponent = iconMap[label as keyof typeof iconMap] || Meh
+    const color = colorMap[label as keyof typeof colorMap] || "bg-gray-400 hover:bg-gray-500"
+    const emoji = emojiMap[label as keyof typeof emojiMap] || "😶"
+    
+    return { IconComponent, color, emoji }
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-accent/30 via-background to-secondary/20">
+        <Card className="max-w-2xl w-full p-8 text-center">
+          <p className="text-xl">Đang tải...</p>
+        </Card>
+      </main>
+    )
   }
 
   return (
@@ -245,7 +300,6 @@ export default function ChildGreeting() {
             />
           </div>
 
-         
           <div className="space-y-1">
             <p className="text-xl md:text-3xl font-semibold text-secondary text-red-500 leading-relaxed">
               Hôm nay bé cảm thấy thế nào?
@@ -255,67 +309,73 @@ export default function ChildGreeting() {
 
           <div className="flex flex-col items-center gap-2 w-full max-w-md mt-3">
             {emotions.map((emotion, index) => {
-              const Icon = emotion.icon
+              const { IconComponent, color, emoji } = getEmotionDisplayProps(emotion.label)
               const isSelected = selectedEmotion === index
+              
               return (
                 <Button
-                  key={index}
+                  key={emotion.id}
                   onClick={() => handleEmotionSelect(index)}
                   className={`
-                    ${emotion.color} 
+                    ${color} 
                     ${isSelected ? "ring-4 ring-ring scale-105" : ""}
                     w-full h-16 md:h-24 flex items-center justify-start gap-3 px-4
                     rounded-2xl shadow-lg hover:shadow-xl transition-all hover:scale-105
                     text-white font-bold border-4 border-white/30
                   `}
                 >
-                  <Icon className="w-10 h-10 md:w-14 md:h-14 flex-shrink-0" />
+                  <IconComponent className="w-10 h-10 md:w-14 md:h-14 flex-shrink-0" />
                   <span className="text-lg md:text-2xl">{emotion.label}</span>
-                  <span className="text-2xl md:text-4xl ml-auto">{emotion.emoji}</span>
+                  <span className="text-2xl md:text-4xl ml-auto">{emoji}</span>
                 </Button>
               )
             })}
           </div>
 
-            {Object.keys(dailyEmotions).length > 0 && (
+          {Object.keys(dailyEmotions).length > 0 && (
             <div className="bg-accent/20 p-3 rounded-lg w-full max-w-md mt-2">
               <p className="font-semibold mb-1 text-sm">Hôm nay bé cảm thấy:</p>
               <ul className="text-xs space-y-0.5">
-                {Object.entries(dailyEmotions).map(([emotion, count]) => (
+                {Object.entries(dailyEmotions).map(([emotion, sessions]) => (
                   <li key={emotion}>
-                    {emotion}: {count} lần
+                    {emotion}: {sessions.morning > 0 ? `${sessions.morning} lần (sáng)` : ""}{sessions.morning > 0 && sessions.afternoon > 0 ? ", " : ""}{sessions.afternoon > 0 ? `${sessions.afternoon} lần (chiều)` : ""}
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
-          {selectedEmotion !== null && (
+          {selectedEmotion !== null && emotions[selectedEmotion] && (
             <div className="mt-3 p-4 bg-primary/20 rounded-3xl border-4 border-primary/30 animate-in fade-in slide-in-from-bottom-4">
               <p className="text-xl md:text-2xl font-bold text-primary">
-                Bé đang cảm thấy {emotions[selectedEmotion].label.toLowerCase()}! {emotions[selectedEmotion].emoji}
+                Bé đang cảm thấy {emotions[selectedEmotion].label.toLowerCase()}! {getEmotionDisplayProps(emotions[selectedEmotion].label).emoji}
               </p>
             </div>
           )}
         </div>
 
-       <Dialog.Root open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <Dialog.Root open={isModalOpen} onOpenChange={setIsModalOpen}>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
             <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl p-6 max-w-md w-full shadow-xl border-4 border-primary/30 z-50">
+              <Dialog.Title className="text-xl font-bold text-primary mb-4">
+                Cảm xúc hôm nay
+              </Dialog.Title>
+
               <Dialog.Close className="absolute top-2 right-2 text-muted-foreground hover:text-foreground">
                 <X className="w-6 h-6" />
               </Dialog.Close>
+
               <div className="flex flex-col items-center gap-4">
-                {selectedEmotion !== null && (
+                {selectedEmotion !== null && emotions[selectedEmotion] && (
                   <>
                     <img
-                      src={emotionFeedback[emotions[selectedEmotion].label].image}
+                      src={emotions[selectedEmotion].image}
                       alt={emotions[selectedEmotion].label}
                       className="w-24 h-24 md:w-32 md:h-32 object-contain rounded-full border-4 border-primary/30 animate-bounce"
                     />
                     <p className="text-xl font-semibold text-primary text-center">
-                      {emotionFeedback[emotions[selectedEmotion].label].message}
+                      {emotions[selectedEmotion].message}
                     </p>
                   </>
                 )}
@@ -330,9 +390,6 @@ export default function ChildGreeting() {
           </Dialog.Portal>
         </Dialog.Root>
       </Card>
-
-
-      
     </main>
   )
 }

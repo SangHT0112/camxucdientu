@@ -3,7 +3,7 @@ import db from '@/lib/db'
 import type { RowDataPacket } from 'mysql2'
 
 interface BeInfo extends RowDataPacket {
-  stt: number
+  sbd: number
   user_id: number           // thêm user_id
   name: string
   gender: string
@@ -21,7 +21,7 @@ export async function GET() {
   let connection
   try {
     connection = await db.getConnection()
-    const [rows] = await connection.execute<BeInfo[]>('SELECT * FROM bes ORDER BY stt ASC')
+    const [rows] = await connection.execute<BeInfo[]>('SELECT * FROM bes ORDER BY sbd ASC')
     return NextResponse.json(rows)
   } catch (error) {
     console.error('❌ Lỗi GET bes:', error)
@@ -45,14 +45,14 @@ export async function POST(request: NextRequest) {
 
     for (const be of bes) {
       await connection.execute(
-        `INSERT INTO bes (stt, user_id, name, gender, age, dob, lop, parent, phone, address, qr_base64) 
+        `INSERT INTO bes (sbd, user_id, name, gender, age, dob, lop, parent, phone, address, qr_base64) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
          ON DUPLICATE KEY UPDATE 
          user_id=VALUES(user_id), name=VALUES(name), gender=VALUES(gender), age=VALUES(age),
          dob=VALUES(dob), lop=VALUES(lop), parent=VALUES(parent), phone=VALUES(phone),
          address=VALUES(address), qr_base64=VALUES(qr_base64)`,
         [
-          be.stt,
+          be.sbd,
           be.user_id,             // thêm user_id vào mảng giá trị
           be.name,
           be.gender,

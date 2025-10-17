@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       const [rows] = await connection.execute<Emotion[]>(
         "SELECT * FROM emotions ORDER BY created_at DESC" // Thêm ORDER BY để đảm bảo thứ tự
       );
-      console.log("Fetched emotions:", rows); // Debug log
+      // console.log("Fetched emotions:", rows); // Debug log
       return NextResponse.json(rows);
     }
   } catch (error) {

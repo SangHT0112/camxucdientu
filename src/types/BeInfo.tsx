@@ -1,5 +1,6 @@
 export interface BeInfo {
-  stt: number
+  id: number
+  sbd: number
   user_id: number
   name: string
   gender: string
