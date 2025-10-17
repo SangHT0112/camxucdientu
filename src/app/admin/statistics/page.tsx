@@ -200,24 +200,24 @@ export default function StatisticsPage() {
           <tr className="bg-gray-100">
             <th className="border p-2">Mã bé</th>
             <th className="border p-2">Tên bé</th>
-            <th className="border p-2">Lớp</th>
+            {/* <th className="border p-2">Lớp</th>
             <th className="border p-2">Giới tính</th>
-            <th className="border p-2">Tuổi</th>
+            <th className="border p-2">Tuổi</th> */}
             <th className="border p-2">Cảm xúc buổi sáng</th>
             <th className="border p-2">Cảm xúc buổi chiều</th>
           </tr>
         </thead>
         <tbody>
           {bes.map(be => {
-            const morningEmotion = logs.find(log => log.child_id === be.id && log.session === "morning")?.emotion_label || "Chưa có"
-            const afternoonEmotion = logs.find(log => log.child_id === be.id && log.session === "afternoon")?.emotion_label || "Chưa có"
+            const morningEmotion = logs.find(log => log.child_id === be.sbd && log.session === "morning")?.emotion_label || "Chưa có"
+            const afternoonEmotion = logs.find(log => log.child_id === be.sbd && log.session === "afternoon")?.emotion_label || "Chưa có"
             return (
               <tr key={be.sbd}>
-                <td className="border p-2">{be.id}</td> {/* Hiển thị ID bé thay vì user_id */}
+                <td className="border p-2">{be.sbd}</td> {/* Hiển thị ID bé thay vì user_id */}
                 <td className="border p-2">{be.name}</td>
-                <td className="border p-2">{be.lop}</td>
+                {/* <td className="border p-2">{be.lop}</td>
                 <td className="border p-2">{be.gender}</td>
-                <td className="border p-2">{be.age}</td>
+                <td className="border p-2">{be.age}</td> */}
                 <td className="border p-2">{morningEmotion}</td>
                 <td className="border p-2">{afternoonEmotion}</td>
               </tr>
