@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
-  PieChart, Pie, Cell, Tooltip as PieTooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as BarTooltip,
   LineChart, Line, Legend, ResponsiveContainer
 } from "recharts"
@@ -41,17 +40,9 @@ export default function StatisticsPage() {
   const [bes, setBes] = useState<BeInfo[]>([])
   const [logs, setLogs] = useState<EmotionLog[]>([])
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0])
-  const [todayData, setTodayData] = useState<{ name: string; session: string; count: number }[]>([])
+  // const [todayData, setTodayData] = useState<{ name: string; session: string; count: number }[]>([])
   const [weeklyData, setWeeklyData] = useState<{ day: string; morning: number; afternoon: number }[]>([])
   const [monthlyTrend, setMonthlyTrend] = useState<{ month: string; positiveMorning: number; positiveAfternoon: number; negativeMorning: number; negativeAfternoon: number }[]>([])
-
-  const emotionColors: { [key: string]: string } = {
-    "Vui vẻ": "#22c55e",
-    "Bình thường": "#3b82f6",
-    "Buồn": "#f59e0b",
-    "Khó chịu": "#ef4444",
-    "Yêu thích": "#f472b6",
-  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -76,18 +67,18 @@ export default function StatisticsPage() {
         }))
         console.log("📥 [fetchData] Dữ liệu todayStats:", todayStats)
         
-        const processedTodayData = todayStats.reduce((acc: any[], stat) => {
-          const key = `${stat.emotion_label} (${stat.session === "morning" ? "Sáng" : "Chiều"})`
-          const existing = acc.find(item => item.name === key)
-          if (existing) {
-            existing.count++
-          } else {
-            acc.push({ name: key, session: stat.session, count: 1 })
-          }
-          return acc
-        }, [])
+        // const processedTodayData = todayStats.reduce((acc: any[], stat) => {
+        //   const key = `${stat.emotion_label} (${stat.session === "morning" ? "Sáng" : "Chiều"})`
+        //   const existing = acc.find(item => item.name === key)
+        //   if (existing) {
+        //     existing.count++
+        //   } else {
+        //     acc.push({ name: key, session: stat.session, count: 1 })
+        //   }
+        //   return acc
+        // }, [])
         
-        setTodayData(processedTodayData)
+        // setTodayData(processedTodayData)
 
         // 4️⃣ Thống kê tuần
         const weekLogs: EmotionLog[] = await fetch(`/api/emotion_logs?lastDays=7`).then(r => r.json())

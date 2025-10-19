@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket, ResultSetHeader } from "mysql2" // ✅ thêm ResultSetHeader
+
 import fs from "fs";
 import path from "path";
 
@@ -178,17 +179,18 @@ export async function PUT(request: NextRequest) {
     connection = await db.getConnection();
     await connection.beginTransaction();
 
-    const [result] = await connection.execute(
+    const [result] = await connection.execute<ResultSetHeader>(
       `UPDATE emotions 
-       SET label = ?, message = ?, audio = ?, image = ?, color = ?, updated_at = NOW()
-       WHERE id = ?`,
+      SET label = ?, message = ?, audio = ?, image = ?, color = ?, updated_at = NOW()
+      WHERE id = ?`,
       [label, message, audio, image, color, id]
-    );
+    )
 
-    if ((result as any).affectedRows === 0) {
-      await connection.rollback();
-      return NextResponse.json({ error: "Không tìm thấy cảm xúc" }, { status: 404 });
+    if (result.affectedRows === 0) { // ✅ không cần as any
+      await connection.rollback()
+      return NextResponse.json({ error: "Không tìm thấy cảm xúc" }, { status: 404 })
     }
+
 
     await connection.commit();
     return NextResponse.json({ success: true });
@@ -215,12 +217,16 @@ export async function DELETE(request: NextRequest) {
 
     await connection.beginTransaction();
 
-    const [result] = await connection.execute("DELETE FROM emotions WHERE id = ?", [parseInt(id)]);
+    const [result] = await connection.execute<ResultSetHeader>(
+      "DELETE FROM emotions WHERE id = ?",
+      [parseInt(id)]
+    )
 
-    if ((result as any).affectedRows === 0) {
-      await connection.rollback();
-      return NextResponse.json({ error: "Không tìm thấy cảm xúc" }, { status: 404 });
+    if (result.affectedRows === 0) { // ✅ không cần as any
+      await connection.rollback()
+      return NextResponse.json({ error: "Không tìm thấy cảm xúc" }, { status: 404 })
     }
+
 
     // Xóa files nếu là path local (không xóa nếu là URL external)
     if (emotion?.image && !emotion.image.startsWith('http')) {

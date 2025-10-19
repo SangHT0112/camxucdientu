@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Pencil, Trash2, Upload, ImageIcon, Link, Volume2, File, ExternalLink } from "lucide-react"
+import { Plus, Pencil, Trash2, Upload, ImageIcon, Link, File, ExternalLink } from "lucide-react"
 import Image from "next/image"
 
 type Emotion = {
@@ -77,7 +77,7 @@ export default function EmotionsPage() {
     fetchEmotions()
   }, [])
 
-  const handleImageUrlInput = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+  const handleImageUrlInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const url = e.target.value
     if (url) {
       setPreviewImage(url)
@@ -88,7 +88,7 @@ export default function EmotionsPage() {
     }
   }
 
-  const handleAudioUrlInput = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+  const handleAudioUrlInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const url = e.target.value
     if (url) {
       setPreviewAudio(url)
@@ -99,7 +99,7 @@ export default function EmotionsPage() {
     }
   }
 
-  const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+  const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       const reader = new FileReader()
@@ -111,7 +111,7 @@ export default function EmotionsPage() {
     }
   }
 
-  const handleAudioFileUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+  const handleAudioFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       const reader = new FileReader()
@@ -484,7 +484,7 @@ export default function EmotionsPage() {
           {emotions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <ImageIcon className="mb-4 h-12 w-12 text-muted-foreground" />
-              <p className="text-muted-foreground">Chưa có cảm xúc nào. Nhấn "Thêm cảm xúc" để bắt đầu.</p>
+              <p className="text-muted-foreground">Chưa có cảm xúc nào. Nhấn &quot;Thêm cảm xúc&quot; để bắt đầu.</p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -597,7 +597,7 @@ export default function EmotionsPage() {
                       ref={editImageUrlInputRef}
                       type="url"
                       placeholder="https://example.com/image.png"
-                      onChange={(e) => handleImageUrlInput(e, true)}
+                      onChange={(e) => handleImageUrlInput(e)}
                       className="flex-1 rounded-md border border-input bg-background px-3 py-2"
                       defaultValue={formData.image}
                     />
@@ -622,7 +622,7 @@ export default function EmotionsPage() {
                       ref={editImageFileInputRef}
                       type="file"
                       accept="image/*"
-                      onChange={(e) => handleImageFileUpload(e, true)}
+                      onChange={(e) => handleImageFileUpload(e)}
                       className="hidden"
                     />
                     <Button
@@ -675,7 +675,7 @@ export default function EmotionsPage() {
                       ref={editAudioUrlInputRef}
                       type="url"
                       placeholder="https://example.com/audio.mp3"
-                      onChange={(e) => handleAudioUrlInput(e, true)}
+                      onChange={(e) => handleAudioUrlInput(e)}
                       className="flex-1 rounded-md border border-input bg-background px-3 py-2"
                       defaultValue={formData.audio}
                     />
@@ -703,7 +703,7 @@ export default function EmotionsPage() {
                       ref={editAudioFileInputRef}
                       type="file"
                       accept="audio/*"
-                      onChange={(e) => handleAudioFileUpload(e, true)}
+                      onChange={(e) => handleAudioFileUpload(e)}
                       className="hidden"
                     />
                     <Button

@@ -19,6 +19,14 @@ type Student = {
   createdAt: string
 }
 
+type BeInfo = {
+  sbd: number
+  name: string
+  lop: string
+  dob: string
+  created_at?: string
+}
+
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -47,7 +55,7 @@ export default function StudentsPage() {
         }
         const data = await response.json()
         // Map data từ BeInfo sang Student (adjust nếu cần)
-        const mappedStudents: Student[] = data.map((be: any) => ({
+        const mappedStudents: Student[] = data.map((be: BeInfo) => ({
           id: be.sbd.toString(),  // Dùng sbd làm id
           name: be.name,
           studentCode: be.sbd.toString().padStart(3, '0'),  // Ví dụ: 001 cho sbd=1
@@ -234,7 +242,7 @@ export default function StudentsPage() {
         <CardContent>
           {students.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <p className="text-muted-foreground">Chưa có học sinh nào. Nhấn "Thêm học sinh" để bắt đầu.</p>
+              <p className="text-muted-foreground">Chưa có học sinh nào. Nhấn &quot;Thêm học sinh&quot; để bắt đầu.</p>
             </div>
           ) : (
             <Table>

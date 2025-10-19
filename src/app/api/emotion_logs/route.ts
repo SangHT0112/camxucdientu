@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket, ResultSetHeader } from "mysql2";
+
 
 interface EmotionLog extends RowDataPacket {
   id: number;
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       FROM emotion_logs el
       JOIN emotions e ON el.emotion_id = e.id
     `;
-    const params: any[] = [];
+    const params: (string | number)[] = [];
     if (child_id && date) {
       query += " WHERE el.child_id = ? AND el.date = ?";
       params.push(child_id, date);
@@ -146,8 +147,8 @@ export async function DELETE(request: NextRequest) {
     if (!id) return NextResponse.json({ error: "Thiếu id" }, { status: 400 });
 
     connection = await db.getConnection();
-    const [result] = await connection.execute("DELETE FROM emotion_logs WHERE id = ?", [id]);
-    if ((result as any).affectedRows === 0) {
+    const [result] = await connection.execute<ResultSetHeader>("DELETE FROM emotion_logs WHERE id = ?", [id]);
+    if (result.affectedRows === 0) {
       return NextResponse.json({ error: "Không tìm thấy bản ghi" }, { status: 404 });
     }
     return NextResponse.json({ success: true });

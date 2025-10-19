@@ -1,27 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import db from '@/lib/db';
+import type { RowDataPacket, FieldPacket, PoolConnection } from 'mysql2/promise';
+
+interface QrRow extends RowDataPacket {
+  sbd: number;
+  name: string;
+  qr_base64: string;
+}
 
 export async function GET(request: NextRequest) {
-  let connection;
+  let connection: PoolConnection | null = null;
   try {
     connection = await db.getConnection();
     const userId = request.headers.get('user-id') || '1';
-    const [rows] = await connection.execute(
-      'SELECT stt, name, qr_base64 FROM bes WHERE qr_base64 IS NOT NULL AND user_id = ?',
+    const [rows]: [QrRow[], FieldPacket[]] = await connection.execute(
+      'SELECT sbd, name, qr_base64 FROM bes WHERE qr_base64 IS NOT NULL AND user_id = ?',
       [userId]
-    ) as any[];
-    // console.log('Rows from MySQL:', rows); // Debug
+    );
 
     if (!rows || rows.length === 0) {
       return NextResponse.json({ error: 'Chưa có mã QR nào.' }, { status: 404 });
     }
 
     const zip = new JSZip();
-    rows.forEach((be: { stt: number; name: string; qr_base64: string }) => {
+    rows.forEach((be: QrRow) => {
       if (be.qr_base64) {
-        // console.log(`Adding QR for ${be.name}:`, be.qr_base64); // Debug
-        const filename = `QR_be_${be.stt}_${be.name.replace(/\s+/g, '_')}.png`;
+        const filename = `QR_be_${be.sbd}_${be.name.replace(/\s+/g, '_')}.png`;
         zip.file(filename, be.qr_base64.split(',')[1], { base64: true });
       }
     });

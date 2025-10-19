@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Smile, Frown, Meh, Angry, Heart, Star, ArrowLeft, Sparkles } from "lucide-react"
 import { useRouter, useParams } from "next/navigation"
+import Image from "next/image"
 import type { BeInfo } from "@/types/BeInfo"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
@@ -293,9 +294,11 @@ export default function ChildGreeting() {
 
           <div className="relative w-32 h-32 md:w-64 md:h-64 my-2">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-full blur-2xl animate-pulse" />
-            <img
+            <Image
               src={child.photo || "/placeholder.svg"}
               alt={child.name}
+              width={256}
+              height={256}
               className="relative w-full h-full object-cover rounded-full border-8 border-primary/30 shadow-2xl"
             />
           </div>
@@ -369,9 +372,11 @@ export default function ChildGreeting() {
               <div className="flex flex-col items-center gap-4">
                 {selectedEmotion !== null && emotions[selectedEmotion] && (
                   <>
-                    <img
+                    <Image
                       src={emotions[selectedEmotion].image}
                       alt={emotions[selectedEmotion].label}
+                      width={128}
+                      height={128}
                       className="w-24 h-24 md:w-32 md:h-32 object-contain rounded-full border-4 border-primary/30 animate-bounce"
                     />
                     <p className="text-xl font-semibold text-primary text-center">
