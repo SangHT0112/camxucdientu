@@ -236,7 +236,13 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
           const sheetName = workbook.SheetNames[0]
           const worksheet = workbook.Sheets[sheetName]
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | boolean | Date)[][]
-          const userId = Number(localStorage.getItem("user_id")) || 1
+          const user = JSON.parse(localStorage.getItem("user") || "{}");
+          const userId = user.id;
+          if (!userId) {
+            alert("Không xác định được user_id. Vui lòng đăng nhập lại.");
+            return;
+          }
+
           const parsedBeListTemp = jsonData
           .slice(1)
           .map((row: (string | number | boolean | Date)[]) => ({

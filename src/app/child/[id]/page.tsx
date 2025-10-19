@@ -73,6 +73,9 @@ export default function ChildGreeting() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [loading, setLoading] = useState(true)
+  const userStr = localStorage.getItem("user");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const userId = user?.id;
 
   // Load emotions từ database
   useEffect(() => {
@@ -103,7 +106,7 @@ export default function ChildGreeting() {
 
       try {
         const response = await fetch(`/api/bes/${id}`, {
-          headers: { "user-id": localStorage.getItem("user_id") || "1" },
+          headers: { "user-id": userId || "1" },
         })
         if (response.ok) {
           const be: BeInfo = await response.json()
