@@ -15,7 +15,7 @@ import JSZip from "jszip"
 import { Scanner } from "@yudiel/react-qr-scanner"
 
 interface BeInfo {
-  sbd: number
+  stt: number
   name: string
   gender: string
   age: number
@@ -28,13 +28,14 @@ interface BeInfo {
   user_id: number    
 }
 
-// 🔥 Fix: Thêm định nghĩa constraints cho Scanner (MediaTrackConstraints từ DOM types)
-const constraints: MediaTrackConstraints = {
-  facingMode: { ideal: "environment" },
-}
-
+// 🔥 Fix: Thêm interface cho QR Code result
 interface QrCodeResult {
   rawValue: string
+}
+
+// 🔥 Fix: Định nghĩa constraints với type đúng
+const constraints: MediaTrackConstraints = {
+  facingMode: { ideal: "environment" },
 }
 
 export default function PreschoolGreeting() {
@@ -44,7 +45,6 @@ export default function PreschoolGreeting() {
   const [generatingQR, setGeneratingQR] = useState(false)
   const [downloadingZip, setDownloadingZip] = useState(false)
   const [cameraError, setCameraError] = useState<string>("")
-  const [isLoading, setIsLoading] = useState(true)
   const [showFileFallback, setShowFileFallback] = useState(false)
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -53,35 +53,39 @@ export default function PreschoolGreeting() {
     const token = localStorage.getItem("token")
     if (!token) {
       alert("Bạn cần đăng nhập trước khi truy cập trang này!")
-      router.push("/login") // Chuyển về trang login
+      router.push("/login")
     }
   }, [router])
 
-  // Load beList từ API MySQL
+  // Load beList từ API MySQL (ưu tiên), fallback localStorage
   useEffect(() => {
     const fetchBeList = async () => {
       try {
-        setIsLoading(true)
         const response = await fetch('/api/bes')
         if (response.ok) {
           const data = await response.json()
-          setBeList(data)
-          console.log(`Đã load ${data.length} bé từ MySQL!`)
-          return
-        } else {
-          console.error(`API error: ${response.status}`)
-          alert("Lỗi load dữ liệu từ CSDL. Vui lòng thử lại sau.")
+          if (data.length > 0) {
+            setBeList(data)
+            console.log(`Đã load ${data.length} bé từ MySQL!`)
+            return
+          }
         }
       } catch (error) {
         console.error("Lỗi load từ API:", error)
-        alert("Lỗi kết nối CSDL. Vui lòng kiểm tra và thử lại.")
-      } finally {
-        setIsLoading(false)
+      }
+
+      // Fallback localStorage
+      const saved = localStorage.getItem("beList")
+      if (saved) {
+        const parsed = JSON.parse(saved) as BeInfo[]
+        setBeList(parsed)
+        console.log(`Fallback từ localStorage: ${parsed.length} bé`)
       }
     }
     fetchBeList()
   }, [])
 
+  // 🔥 Fix: Sử dụng type đúng cho detectedCodes
   const handleScan = (detectedCodes: QrCodeResult[]) => {
     const result = detectedCodes[0]?.rawValue
     if (result) {
@@ -89,7 +93,7 @@ export default function PreschoolGreeting() {
       const idMatch = result.match(/ID:(\d+)/)
       if (idMatch) {
         const id = idMatch[1]
-        const be = beList.find((b) => b.sbd.toString() === id)
+        const be = beList.find((b) => b.stt.toString() === id)
         if (be) {
           alert(`Quét thành công! Chào ${be.name} (${be.lop})! 😊`)
           setShowScanner(false)
@@ -103,19 +107,27 @@ export default function PreschoolGreeting() {
     }
   }
 
-  const handleError = (error: Error) => {
+  // 🔥 Fix: Sử dụng type cụ thể cho error
+  const handleError = (error: unknown) => {
     console.error("❌ Scan error:", error)
-    if (error.name === "NotAllowedError" || error.message.includes("Permission")) {
-      setCameraError("Bị từ chối truy cập camera! Vui lòng cho phép quyền camera.")
-      setShowFileFallback(true)
-    } else if (error.name === "NotFoundError") {
-      setCameraError("Không tìm thấy camera! Kiểm tra kết nối.")
-      setShowFileFallback(true)
+    
+    if (error instanceof Error) {
+      if (error.name === "NotAllowedError" || error.message.includes("Permission")) {
+        setCameraError("Bị từ chối truy cập camera! Vui lòng cho phép quyền camera.")
+        setShowFileFallback(true)
+      } else if (error.name === "NotFoundError") {
+        setCameraError("Không tìm thấy camera! Kiểm tra kết nối.")
+        setShowFileFallback(true)
+      } else {
+        setCameraError("Lỗi quét: " + error.message)
+      }
     } else {
-      setCameraError("Lỗi quét: " + error.message)
+      setCameraError("Lỗi không xác định khi truy cập camera")
+      setShowFileFallback(true)
     }
   }
 
+  // 🔥 Fix: Xóa biến imageData không sử dụng
   const handleFileScan = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -130,6 +142,8 @@ export default function PreschoolGreeting() {
           canvas.width = img.width
           canvas.height = img.height
           ctx?.drawImage(img, 0, 0)
+          // 🔥 Fix: Xóa dòng này vì không sử dụng imageData
+          // const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height)
           alert("Scan file: " + e.target?.result)
         }
         img.src = e.target?.result as string
@@ -192,7 +206,7 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
   }
 
   const generateQRForBe = async (be: BeInfo): Promise<string> => {
-    const qrText = `ID:${be.sbd}|Name:${be.name}|Lớp:${be.lop}|Parent:${be.parent}|Phone:${be.phone}`
+    const qrText = `ID:${be.stt}|Name:${be.name}|Lớp:${be.lop}|Parent:${be.parent}|Phone:${be.phone}`
     try {
       const qrUrl = await QRCode.toDataURL(qrText, {
         width: 256,
@@ -203,20 +217,6 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
     } catch (err) {
       console.error("Lỗi generate QR:", err)
       return ""
-    }
-  }
-
-  // Refresh beList từ DB sau khi upload thành công
-  const refreshBeList = async () => {
-    try {
-      const response = await fetch('/api/bes')
-      if (response.ok) {
-        const data = await response.json()
-        setBeList(data)
-        console.log(`Đã refresh ${data.length} bé từ MySQL!`)
-      }
-    } catch (error) {
-      console.error("Lỗi refresh từ API:", error)
     }
   }
 
@@ -236,18 +236,12 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
           const sheetName = workbook.SheetNames[0]
           const worksheet = workbook.Sheets[sheetName]
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | boolean | Date)[][]
-          const user = JSON.parse(localStorage.getItem("user") || "{}");
-          const userId = user.id;
-          if (!userId) {
-            alert("Không xác định được user_id. Vui lòng đăng nhập lại.");
-            return;
-          }
-
+          const userId = Number(localStorage.getItem("user_id")) || 1
           const parsedBeListTemp = jsonData
           .slice(1)
           .map((row: (string | number | boolean | Date)[]) => ({
-            sbd: row[0] as number,
-            user_id: userId,     // thêm user_id
+            stt: row[0] as number,
+            user_id: userId,
             name: row[1] as string,
             gender: row[2] as string,
             age: row[3] as number,
@@ -257,7 +251,7 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
             phone: row[7] as string,
             address: row[8] as string,
           }))
-          .filter((be) => be.sbd)
+          .filter((be) => be.stt)
 
           setGeneratingQR(true)
 
@@ -265,26 +259,35 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
           const qrBase64List = await Promise.all(qrPromises)
 
           // Batch save to MySQL API
-          const response = await fetch('/api/bes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              bes: parsedBeListTemp.map((be, index) => ({ ...be, qrBase64: qrBase64List[index] }))
+          try {
+            const response = await fetch('/api/bes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                bes: parsedBeListTemp.map((be, index) => ({ ...be, qrBase64: qrBase64List[index] }))
+              })
             })
-          })
-          if (!response.ok) {
-            throw new Error(`API error: ${response.status}`)
+            if (!response.ok) {
+              throw new Error(`API error: ${response.status}`)
+            }
+            console.log("Lưu thành công vào MySQL!")
+          } catch (mysqlError) {
+            console.error("Lỗi lưu MySQL:", mysqlError)
+            const parsedBeListWithQR = parsedBeListTemp.map((be, index) => ({ ...be, qrBase64: qrBase64List[index] }))
+            localStorage.setItem("beList", JSON.stringify(parsedBeListWithQR))
+            alert("Lưu localStorage (MySQL lỗi). Kiểm tra kết nối DB.")
+            setBeList(parsedBeListWithQR)
+            return
           }
-          console.log("Lưu thành công vào MySQL!")
 
-          // Refresh beList từ DB
-          await refreshBeList()
-
-          alert(`Đã upload thành công ${parsedBeListTemp.length} bé và tạo QR! Lưu vào CSDL. 📚✨`)
+          const parsedBeListWithQR = parsedBeListTemp.map((be, index) => ({ ...be, qrBase64: qrBase64List[index] }))
+          setBeList(parsedBeListWithQR)
+          localStorage.setItem("beList", JSON.stringify(parsedBeListWithQR))
+          alert(`Đã upload thành công ${parsedBeListWithQR.length} bé và tạo QR! Lưu MySQL + local. 📚✨`)
           setShowUploadModal(false)
         } catch (error) {
           console.error("Lỗi upload:", error)
-          alert("Lỗi upload file! Kiểm tra format Excel hoặc kết nối CSDL.")
+          alert("Lỗi upload file! Kiểm tra format Excel.")
         } finally {
           setGeneratingQR(false)
         }
@@ -298,14 +301,12 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
  const handleDownloadAllQR = async () => {
   setDownloadingZip(true);
   try {
-    // Kiểm tra nếu beList rỗng hoặc không có qrBase64
     if (beList.length === 0) {
       throw new Error('Chưa có danh sách bé! Upload trước nhé. 📚');
     }
     const qrCount = beList.filter((b) => b.qrBase64).length;
     if (qrCount === 0) {
       console.log('Không có qrBase64 trong beList, gọi API /api/qr');
-      // Fallback sang API /api/qr
       const response = await fetch('/api/qr', {
         headers: { 'user-id': localStorage.getItem('user_id') || '1' },
       });
@@ -326,14 +327,12 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
       return;
     }
 
-    // Debug: Kiểm tra qrBase64 trong beList
     console.log('beList with QR:', beList.filter((b) => b.qrBase64));
 
-    // Tạo file ZIP từ beList
     const zip = new JSZip();
     beList.forEach((be) => {
       if (be.qrBase64) {
-        const filename = `QR_be_${be.sbd}_${be.name.replace(/\s+/g, '_')}.png`;
+        const filename = `QR_be_${be.stt}_${be.name.replace(/\s+/g, '_')}.png`;
         zip.file(filename, be.qrBase64.split(',')[1], { base64: true });
       }
     });
@@ -351,7 +350,6 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
     alert(`Đã tải ZIP chứa ${qrCount} mã QR! 💾 In ra dán bảng tên bé nhé!`);
   } catch (err) {
     console.error('Lỗi tải ZIP:', err);
-    // alert(`Lỗi tải file: ${err.message}. Kiểm tra dữ liệu hoặc thử lại.`);
   } finally {
     setDownloadingZip(false);
   }
@@ -363,17 +361,6 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
     },
   })
-
-  if (isLoading) {
-    return (
-      <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-accent/30 via-background to-secondary/20">
-        <Card className="p-8 text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-          <p>Đang tải dữ liệu...</p>
-        </Card>
-      </main>
-    )
-  }
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-accent/30 via-background to-secondary/20">
@@ -425,7 +412,7 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
                         <span>
                           {be.name} ({be.lop})
                         </span>
-                        <span className="text-xs">{be.sbd}</span>
+                        <span className="text-xs">{be.stt}</span>
                         {be.qrBase64 && <span className="text-xs text-green-600">✅ QR sẵn</span>}
                       </li>
                     ))}
@@ -475,9 +462,6 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
             <h1 className="text-3xl md:text-7xl font-bold text-primary leading-tight text-balance">
               Xin chào bé ngoan! 👋
             </h1>
-            {/* <p className="text-2xl md:text-4xl font-semibold text-secondary  leading-relaxed text-pretty">
-              Chúc bé một ngày vui vẻ tại trường mầm non! 🌈
-            </p> */}
             <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed">Hôm nay bé học gì vui nhỉ? ✨</p>
           </div>
 
@@ -512,9 +496,9 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
               >
                 <X className="w-4 h-4" />
               </Button>
-              {/* <div className="w-full h-64 bg-gray-900 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+              <div className="w-full h-64 bg-gray-900 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4">
                 <Scanner onScan={handleScan} onError={handleError} constraints={constraints} />
-              </div> */}
+              </div>
               <p className="text-sm text-muted-foreground mt-2 text-center">Đưa mã QR vào khung để quét</p>
 
               {/* Fallback file upload */}
