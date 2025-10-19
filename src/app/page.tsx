@@ -15,7 +15,7 @@ import JSZip from "jszip"
 import { Scanner } from "@yudiel/react-qr-scanner"
 
 interface BeInfo {
-  stt: number
+  sbd: number
   name: string
   gender: string
   age: number
@@ -93,7 +93,7 @@ export default function PreschoolGreeting() {
       const idMatch = result.match(/ID:(\d+)/)
       if (idMatch) {
         const id = idMatch[1]
-        const be = beList.find((b) => b.stt.toString() === id)
+        const be = beList.find((b) => b.sbd.toString() === id)
         if (be) {
           alert(`Quét thành công! Chào ${be.name} (${be.lop})! 😊`)
           setShowScanner(false)
@@ -206,7 +206,7 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
   }
 
   const generateQRForBe = async (be: BeInfo): Promise<string> => {
-    const qrText = `ID:${be.stt}|Name:${be.name}|Lớp:${be.lop}|Parent:${be.parent}|Phone:${be.phone}`
+    const qrText = `ID:${be.sbd}|Name:${be.name}|Lớp:${be.lop}|Parent:${be.parent}|Phone:${be.phone}`
     try {
       const qrUrl = await QRCode.toDataURL(qrText, {
         width: 256,
@@ -240,7 +240,7 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
           const parsedBeListTemp = jsonData
           .slice(1)
           .map((row: (string | number | boolean | Date)[]) => ({
-            stt: row[0] as number,
+            sbd: row[0] as number,
             user_id: userId,
             name: row[1] as string,
             gender: row[2] as string,
@@ -251,7 +251,7 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
             phone: row[7] as string,
             address: row[8] as string,
           }))
-          .filter((be) => be.stt)
+          .filter((be) => be.sbd)
 
           setGeneratingQR(true)
 
@@ -332,7 +332,7 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
     const zip = new JSZip();
     beList.forEach((be) => {
       if (be.qrBase64) {
-        const filename = `QR_be_${be.stt}_${be.name.replace(/\s+/g, '_')}.png`;
+        const filename = `QR_be_${be.sbd}_${be.name.replace(/\s+/g, '_')}.png`;
         zip.file(filename, be.qrBase64.split(',')[1], { base64: true });
       }
     });
@@ -412,7 +412,7 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
                         <span>
                           {be.name} ({be.lop})
                         </span>
-                        <span className="text-xs">{be.stt}</span>
+                        <span className="text-xs">{be.sbd}</span>
                         {be.qrBase64 && <span className="text-xs text-green-600">✅ QR sẵn</span>}
                       </li>
                     ))}
