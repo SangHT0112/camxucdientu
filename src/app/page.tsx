@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Upload, QrCode, Sparkles, Star, Download, Loader2, X, ImageIcon } from "lucide-react"
+import { Upload, QrCode, Sparkles, Star, Download, Loader2, X, ImageIcon, Settings } from "lucide-react"
 import { useRouter } from "next/navigation"
 import * as XLSX from "xlsx"
 import { useDropzone } from "react-dropzone"
@@ -205,6 +205,10 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
     setShowUploadModal(true)
   }
 
+  const handleAdminClick = () => {
+    router.push('/admin')
+  }
+
   const generateQRForBe = async (be: BeInfo): Promise<string> => {
     const qrText = `ID:${be.sbd}|Name:${be.name}|Lớp:${be.lop}|Parent:${be.parent}|Phone:${be.phone}`
     try {
@@ -364,6 +368,19 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-accent/30 via-background to-secondary/20">
+      <div className="fixed top-4 left-4 z-50 flex flex-col gap-2">
+        {/* Admin Management Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAdminClick}
+          className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border-2 border-primary/50 bg-secondary/90 hover:bg-secondary text-secondary-foreground font-bold backdrop-blur min-w-[80px] justify-center"
+        >
+          <Settings className="w-5 h-5 hidden md:block" />
+          <span className="ml-0 md:ml-2 text-xs md:text-sm">Admin</span>
+        </Button>
+      </div>
+
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
         {/* Upload Excel Button */}
         <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
@@ -372,11 +389,11 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
               variant="outline"
               size="sm"
               onClick={handleUploadClick}
-              className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border-2 border-primary/50 bg-secondary/90 hover:bg-secondary text-secondary-foreground font-bold backdrop-blur"
+              className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border-2 border-primary/50 bg-secondary/90 hover:bg-secondary text-secondary-foreground font-bold backdrop-blur min-w-[80px] justify-center"
               disabled={generatingQR}
             >
-              {generatingQR ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-              <span className="ml-2 hidden md:inline">{generatingQR ? "Đang tạo QR..." : "Upload Excel"}</span>
+              {generatingQR ? <Loader2 className="w-5 h-5 hidden md:block animate-spin" /> : <Upload className="w-5 h-5 hidden md:block" />}
+              <span className="ml-0 md:ml-2 text-xs md:text-sm">{generatingQR ? "Đang tạo QR..." : "Upload Excel"}</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -432,10 +449,10 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
             size="sm"
             onClick={handleDownloadAllQR}
             disabled={downloadingZip}
-            className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 bg-secondary/90 hover:bg-secondary text-secondary-foreground font-bold backdrop-blur"
+            className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 bg-secondary/90 hover:bg-secondary text-secondary-foreground font-bold backdrop-blur min-w-[80px] justify-center"
           >
-            {downloadingZip ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-            <span className="ml-2 hidden md:inline">
+            {downloadingZip ? <Loader2 className="w-5 h-5 hidden md:block animate-spin" /> : <Download className="w-5 h-5 hidden md:block" />}
+            <span className="ml-0 md:ml-2 text-xs md:text-sm">
               {downloadingZip ? "Đang tải..." : `Tải QR (${beList.filter((b) => b.qrBase64).length})`}
             </span>
           </Button>
