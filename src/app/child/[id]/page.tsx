@@ -388,6 +388,13 @@ export default function ChildGreeting() {
                   </>
                 )}
                 <Button
+                  onClick={() => router.push(`/child/${params.id}/quiz`)}
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/90 px-6 py-2 rounded-full border border-secondary/30"
+                  variant="outline"
+                >
+                  Đố vui nào! 🎉
+                </Button>
+                <Button
                   onClick={() => router.push("/")}
                   className="bg-primary text-white hover:bg-primary/90 px-6 py-2 rounded-full"
                 >

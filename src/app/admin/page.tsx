@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { BarChart3, LayoutDashboard, Users, Activity } from "lucide-react"
+import { BarChart3, LayoutDashboard, Users, Activity, HelpCircle } from "lucide-react"
 
 export default function AdminPage() {
   const cards = [
@@ -11,6 +11,7 @@ export default function AdminPage() {
     { title: "Cảm xúc", desc: "Theo dõi cảm xúc học sinh", href: "/admin/emotions", icon: Activity, btnText: "Quản lý" },
     { title: "Thống kê", desc: "Phân tích dữ liệu", href: "/admin/statistics", icon: BarChart3, btnText: "Xem thống kê" },
     { title: "Học sinh", desc: "Quản lý thông tin học sinh", href: "/admin/students", icon: Users, btnText: "Quản lý học sinh" },
+    { title: "Câu hỏi bé ngoan", desc: "Quản lý câu hỏi và đáp án", href: "/admin/questions", icon: HelpCircle, btnText: "Quản lý câu hỏi" },
   ]
 
   return (
