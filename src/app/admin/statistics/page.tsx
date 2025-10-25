@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as BarTooltip,
   LineChart, Line, Legend, ResponsiveContainer
@@ -11,8 +12,8 @@ import * as XLSX from "xlsx"
 
 // Interfaces
 interface BeInfo {
-  id: number       // ID của bé, dùng để liên kết với emotion_logs.child_id
-  sbd: number      // số thứ tự hiển thị
+  id: number
+  sbd: number
   name: string
   gender: string
   age: number
@@ -21,9 +22,8 @@ interface BeInfo {
   parent: string
   phone: string
   address: string
-  teacher_id: number  // user_id của giáo viên
+  teacher_id: number
 }
-
 
 interface EmotionLog {
   child_id: number
@@ -40,10 +40,30 @@ export default function StatisticsPage() {
   const [bes, setBes] = useState<BeInfo[]>([])
   const [logs, setLogs] = useState<EmotionLog[]>([])
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0])
-  // const [todayData, setTodayData] = useState<{ name: string; session: string; count: number }[]>([])
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({
+    from: new Date().toISOString().split("T")[0],
+    to: new Date().toISOString().split("T")[0]
+  })
+  const [searchTerm, setSearchTerm] = useState<string>("")
+  const [filteredBes, setFilteredBes] = useState<BeInfo[]>([])
   const [weeklyData, setWeeklyData] = useState<{ day: string; morning: number; afternoon: number }[]>([])
   const [monthlyTrend, setMonthlyTrend] = useState<{ month: string; positiveMorning: number; positiveAfternoon: number; negativeMorning: number; negativeAfternoon: number }[]>([])
 
+  // Lọc danh sách bé theo từ khóa tìm kiếm
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredBes(bes)
+    } else {
+      const filtered = bes.filter(be =>
+        be.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        be.lop.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        be.sbd.toString().includes(searchTerm)
+      )
+      setFilteredBes(filtered)
+    }
+  }, [searchTerm, bes])
+
+  // Fetch data khi selectedDate hoặc dateRange thay đổi
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -51,36 +71,16 @@ export default function StatisticsPage() {
         const resBes = await fetch("/api/bes")
         const besData: BeInfo[] = await resBes.json()
         console.log("📥 [fetchData] Dữ liệu bes:", besData)
-        setBes(besData) // Không deduplicate, vì dữ liệu đã đúng
+        setBes(besData)
+        setFilteredBes(besData)
 
-        // 2️⃣ Lấy logs hôm nay
+        // 2️⃣ Lấy logs theo ngày được chọn
         const resLogs = await fetch(`/api/emotion_logs?date=${selectedDate}`)
         const logsData: EmotionLog[] = await resLogs.json()
         console.log("📥 [fetchData] Dữ liệu emotion_logs:", logsData)
         setLogs(logsData)
 
-        // 3️⃣ Tổng hợp PieChart (theo buổi)
-        // Lấy trực tiếp từ logs đã fetch
-        const todayStats = logs.map(log => ({
-          emotion_label: log.emotion_label,
-          session: log.session
-        }))
-        console.log("📥 [fetchData] Dữ liệu todayStats:", todayStats)
-        
-        // const processedTodayData = todayStats.reduce((acc: any[], stat) => {
-        //   const key = `${stat.emotion_label} (${stat.session === "morning" ? "Sáng" : "Chiều"})`
-        //   const existing = acc.find(item => item.name === key)
-        //   if (existing) {
-        //     existing.count++
-        //   } else {
-        //     acc.push({ name: key, session: stat.session, count: 1 })
-        //   }
-        //   return acc
-        // }, [])
-        
-        // setTodayData(processedTodayData)
-
-        // 4️⃣ Thống kê tuần
+        // 3️⃣ Thống kê tuần
         const weekLogs: EmotionLog[] = await fetch(`/api/emotion_logs?lastDays=7`).then(r => r.json())
         console.log("📥 [fetchData] Dữ liệu weekLogs:", weekLogs)
         const days = Array.from({ length: 7 }, (_, i) => {
@@ -100,7 +100,7 @@ export default function StatisticsPage() {
         console.log("📥 [fetchData] Dữ liệu weekSummary:", weekSummary)
         setWeeklyData(weekSummary)
 
-        // 5️⃣ Thống kê tháng
+        // 4️⃣ Thống kê tháng
         const monthLogs: EmotionLog[] = await fetch(`/api/emotion_logs?lastMonths=6`).then(r => r.json())
         console.log("📥 [fetchData] Dữ liệu monthLogs:", monthLogs)
         const months = Array.from({ length: 6 }, (_, i) => {
@@ -142,11 +142,34 @@ export default function StatisticsPage() {
     fetchData()
   }, [selectedDate])
 
-  // Xuất Excel
+  // Fetch logs theo khoảng thời gian
+  const fetchLogsByDateRange = async () => {
+    try {
+      const res = await fetch(`/api/emotion_logs?from=${dateRange.from}&to=${dateRange.to}`)
+      const logsData: EmotionLog[] = await res.json()
+      console.log("📥 [fetchLogsByDateRange] Dữ liệu logs theo khoảng:", logsData)
+      setLogs(logsData)
+    } catch (error) {
+      console.error("❌ Lỗi fetchLogsByDateRange:", error)
+    }
+  }
+
+  // Xuất Excel với khoảng thời gian
   const exportExcel = () => {
-    const wsData = bes.map(be => {
-      const morningEmotion = logs.find(log => log.child_id === be.sbd && log.session === "morning")?.emotion_label || "Chưa có"
-      const afternoonEmotion = logs.find(log => log.child_id === be.sbd && log.session === "afternoon")?.emotion_label || "Chưa có"
+    const wsData = filteredBes.map(be => {
+      // Lọc logs theo bé và khoảng thời gian
+      const childLogs = logs.filter(log => log.child_id === be.sbd)
+      
+      const morningEmotion = childLogs
+        .filter(log => log.session === "morning")
+        .map(log => `${log.emotion_label} (${new Date(log.date).toLocaleDateString('vi-VN')})`)
+        .join(', ') || "Chưa có"
+        
+      const afternoonEmotion = childLogs
+        .filter(log => log.session === "afternoon")
+        .map(log => `${log.emotion_label} (${new Date(log.date).toLocaleDateString('vi-VN')})`)
+        .join(', ') || "Chưa có"
+
       return {
         "Mã bé": be.sbd,
         "Tên bé": be.name,
@@ -161,28 +184,96 @@ export default function StatisticsPage() {
         "Cảm xúc buổi chiều": afternoonEmotion,
       }
     })
+    
     console.log("📥 [exportExcel] Dữ liệu xuất Excel:", wsData)
     const ws = XLSX.utils.json_to_sheet(wsData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Thống kê")
-    XLSX.writeFile(wb, `EmotionStats_${selectedDate}.xlsx`)
+    
+    const fileName = dateRange.from === dateRange.to 
+      ? `EmotionStats_${selectedDate}.xlsx`
+      : `EmotionStats_${dateRange.from}_to_${dateRange.to}.xlsx`
+      
+    XLSX.writeFile(wb, fileName)
   }
 
   return (
     <div className="space-y-6 p-4">
       <h2 className="text-xl font-bold">Thống kê cảm xúc bé</h2>
 
-      {/* Chọn ngày */}
+      {/* Thanh tìm kiếm */}
       <div className="mb-4">
-        <label htmlFor="date" className="mr-2 font-medium">Chọn ngày:</label>
-        <input
-          type="date"
-          id="date"
-          value={selectedDate}
-          onChange={e => setSelectedDate(e.target.value)}
-          className="border p-1 rounded"
+        <Input
+          type="text"
+          placeholder="Tìm kiếm theo tên bé, lớp hoặc mã bé..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-md mb-4"
         />
-        <Button onClick={exportExcel} className="ml-4 bg-blue-500 text-white">Xuất Excel</Button>
+      </div>
+
+      {/* Chọn ngày và khoảng thời gian */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        {/* Chọn ngày cụ thể */}
+        <div>
+          <label htmlFor="date" className="block text-sm font-medium mb-1">Chọn ngày cụ thể:</label>
+          <Input
+            type="date"
+            id="date"
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="border p-1 rounded"
+          />
+        </div>
+
+        {/* Chọn khoảng thời gian */}
+        <div>
+          <label htmlFor="dateFrom" className="block text-sm font-medium mb-1">Từ ngày:</label>
+          <Input
+            type="date"
+            id="dateFrom"
+            value={dateRange.from}
+            onChange={e => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+            className="border p-1 rounded"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="dateTo" className="block text-sm font-medium mb-1">Đến ngày:</label>
+          <Input
+            type="date"
+            id="dateTo"
+            value={dateRange.to}
+            onChange={e => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+            className="border p-1 rounded"
+          />
+        </div>
+      </div>
+
+      {/* Nút hành động */}
+      <div className="flex gap-4 mb-4">
+        <Button 
+          onClick={fetchLogsByDateRange} 
+          className="bg-green-500 text-white"
+          disabled={!dateRange.from || !dateRange.to}
+        >
+          Lọc theo khoảng thời gian
+        </Button>
+        <Button onClick={exportExcel} className="bg-blue-500 text-white">
+          Xuất Excel
+        </Button>
+      </div>
+
+      {/* Thông tin về bộ lọc hiện tại */}
+      <div className="bg-blue-50 p-3 rounded-md">
+        <p className="text-sm text-blue-800">
+          Đang hiển thị: {dateRange.from === dateRange.to 
+            ? `dữ liệu ngày ${selectedDate}` 
+            : `dữ liệu từ ${dateRange.from} đến ${dateRange.to}`
+          } | 
+          Số bé: {filteredBes.length} | 
+          Tổng số bản ghi cảm xúc: {logs.length}
+        </p>
       </div>
 
       {/* Danh sách bé + trạng thái cảm xúc */}
@@ -191,61 +282,67 @@ export default function StatisticsPage() {
           <tr className="bg-gray-100">
             <th className="border p-2">Mã bé</th>
             <th className="border p-2">Tên bé</th>
-            {/* <th className="border p-2">Lớp</th>
-            <th className="border p-2">Giới tính</th>
-            <th className="border p-2">Tuổi</th> */}
+            <th className="border p-2">Lớp</th>
             <th className="border p-2">Cảm xúc buổi sáng</th>
             <th className="border p-2">Cảm xúc buổi chiều</th>
           </tr>
         </thead>
         <tbody>
-          {bes.map(be => {
-            const morningEmotion = logs.find(log => log.child_id === be.sbd && log.session === "morning")?.emotion_label || "Chưa có"
-            const afternoonEmotion = logs.find(log => log.child_id === be.sbd && log.session === "afternoon")?.emotion_label || "Chưa có"
-            return (
-              <tr key={be.sbd}>
-                <td className="border p-2">{be.sbd}</td> {/* Hiển thị ID bé thay vì user_id */}
-                <td className="border p-2">{be.name}</td>
-                {/* <td className="border p-2">{be.lop}</td>
-                <td className="border p-2">{be.gender}</td>
-                <td className="border p-2">{be.age}</td> */}
-                <td className="border p-2">{morningEmotion}</td>
-                <td className="border p-2">{afternoonEmotion}</td>
-              </tr>
-            )
-          })}
+          {filteredBes.length > 0 ? (
+            filteredBes.map(be => {
+              // Lọc logs cho bé cụ thể
+              const childLogs = logs.filter(log => log.child_id === be.sbd)
+              
+              const morningEmotions = childLogs
+                .filter(log => log.session === "morning")
+                .map(log => `${log.emotion_label} (${new Date(log.date).toLocaleDateString('vi-VN')})`)
+              
+              const afternoonEmotions = childLogs
+                .filter(log => log.session === "afternoon")
+                .map(log => `${log.emotion_label} (${new Date(log.date).toLocaleDateString('vi-VN')})`)
+
+              return (
+                <tr key={be.sbd}>
+                  <td className="border p-2">{be.sbd}</td>
+                  <td className="border p-2">{be.name}</td>
+                  <td className="border p-2">{be.lop}</td>
+                  <td className="border p-2">
+                    {morningEmotions.length > 0 ? (
+                      <ul className="list-disc list-inside text-sm">
+                        {morningEmotions.map((emotion, index) => (
+                          <li key={index}>{emotion}</li>
+                        ))}
+                      </ul>
+                    ) : "Chưa có"}
+                  </td>
+                  <td className="border p-2">
+                    {afternoonEmotions.length > 0 ? (
+                      <ul className="list-disc list-inside text-sm">
+                        {afternoonEmotions.map((emotion, index) => (
+                          <li key={index}>{emotion}</li>
+                        ))}
+                      </ul>
+                    ) : "Chưa có"}
+                  </td>
+                </tr>
+              )
+            })
+          ) : (
+            <tr>
+              <td colSpan={5} className="border p-4 text-center text-gray-500">
+                Không tìm thấy bé nào phù hợp
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
       {/* Tabs thống kê */}
-      <Tabs defaultValue="today" className="mt-6">
+      <Tabs defaultValue="week" className="mt-6">
         <TabsList>
-          <TabsTrigger value="today">Hôm nay</TabsTrigger>
           <TabsTrigger value="week">Tuần</TabsTrigger>
           <TabsTrigger value="month">Tháng</TabsTrigger>
         </TabsList>
-
-        {/* <TabsContent value="today">
-          <h3 className="text-lg font-semibold mb-2">Tỉ lệ cảm xúc hôm nay</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={todayData}
-                dataKey="count"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-              >
-                {todayData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={emotionColors[entry.name.split(" ")[0]] || "#888"} />
-                ))}
-              </Pie>
-              <PieTooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </TabsContent> */}
 
         <TabsContent value="week">
           <h3 className="text-lg font-semibold mb-2">Số lần cảm xúc trong tuần</h3>

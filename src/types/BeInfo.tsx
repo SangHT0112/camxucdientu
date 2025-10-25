@@ -11,4 +11,5 @@ export interface BeInfo {
   phone: string
   address: string
   qrBase64?: string
+  avatar?: string
 }

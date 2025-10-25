@@ -3,39 +3,12 @@
 import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Smile, Frown, Meh, Angry, Heart, Star, ArrowLeft, Sparkles } from "lucide-react"
+import { Star, ArrowLeft, Sparkles } from "lucide-react"
 import { useRouter, useParams } from "next/navigation"
 import Image from "next/image"
 import type { BeInfo } from "@/types/BeInfo"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
-
-// Icon mapping để ánh xạ từ label sang icon
-const iconMap = {
-  "Vui vẻ": Smile,
-  "Yêu thích": Heart,
-  "Bình thường": Meh,
-  "Buồn": Frown,
-  "Khó chịu": Angry,
-}
-
-// Color mapping cho các emotion
-const colorMap = {
-  "Vui vẻ": "bg-yellow-400 hover:bg-yellow-500",
-  "Yêu thích": "bg-pink-400 hover:bg-pink-500", 
-  "Bình thường": "bg-blue-400 hover:bg-blue-500",
-  "Buồn": "bg-purple-400 hover:bg-purple-500",
-  "Khó chịu": "bg-red-400 hover:bg-red-500",
-}
-
-// Emoji mapping
-const emojiMap = {
-  "Vui vẻ": "😊",
-  "Yêu thích": "😍",
-  "Bình thường": "😐",
-  "Buồn": "😢",
-  "Khó chịu": "😠",
-}
 
 interface Emotion {
   id: number
@@ -43,6 +16,7 @@ interface Emotion {
   message: string
   audio: string
   image: string
+  color: string | null
   created_at: string
   updated_at: string
 }
@@ -115,7 +89,7 @@ export default function ChildGreeting() {
               name: be.name,
               gender: be.gender,
               lop: be.lop,
-              photo: be.qrBase64 ? be.qrBase64 : `/happy-${be.gender === "Nữ" ? "girl" : "boy"}-preschool.jpg`,
+              photo: be.avatar ? be.avatar : `/happy-${be.gender === "Nữ" ? "girl" : "boy"}-preschool.jpg`,
             })
             return
           }
@@ -134,7 +108,7 @@ export default function ChildGreeting() {
             name: be.name,
             gender: be.gender,
             lop: be.lop,
-            photo: be.qrBase64 ? be.qrBase64 : `/happy-${be.gender === "Nữ" ? "girl" : "boy"}-preschool.jpg`,
+            photo: be.avatar ? be.avatar : `/happy-${be.gender === "Nữ" ? "girl" : "boy"}-preschool.jpg`,
           })
         } else {
           alert("Không tìm thấy bé! Quay lại upload danh sách.")
@@ -245,15 +219,6 @@ export default function ChildGreeting() {
     router.push("/")
   }
 
-  // Hàm helper để lấy icon, color và emoji dựa trên label
-  const getEmotionDisplayProps = (label: string) => {
-    const IconComponent = iconMap[label as keyof typeof iconMap] || Meh
-    const color = colorMap[label as keyof typeof colorMap] || "bg-gray-400 hover:bg-gray-500"
-    const emoji = emojiMap[label as keyof typeof emojiMap] || "😶"
-    
-    return { IconComponent, color, emoji }
-  }
-
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-accent/30 via-background to-secondary/20">
@@ -266,11 +231,6 @@ export default function ChildGreeting() {
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-accent/30 via-background to-secondary/20">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 left-10 w-20 h-20 bg-primary/20 rounded-full blur-xl animate-pulse" />
-        <div className="absolute top-40 right-20 w-32 h-32 bg-secondary/20 rounded-full blur-2xl animate-pulse delay-300" />
-        <div className="absolute bottom-20 left-1/4 w-24 h-24 bg-accent/20 rounded-full blur-xl animate-pulse delay-700" />
-      </div>
 
       <Card className="relative max-w-2xl w-full p-4 md:p-12 shadow-2xl border-4 border-primary/20 bg-card/95 backdrop-blur">
         <Button
@@ -290,10 +250,9 @@ export default function ChildGreeting() {
             <Star className="w-4 h-4 text-accent fill-accent" />
           </div>
 
-          <h1 className="text-3xl md:text-6xl font-bold text-primary leading-tight text-balance">
+          <h1 className="text-3xl md:text-3xl font-bold text-primary leading-tight text-balance">
             Xin chào {child.name}!
           </h1>
-          <p className="text-lg md:text-xl font-semibold text-secondary">Lớp: {child.lop}</p>
 
           <div className="relative w-32 h-32 md:w-64 md:h-64 my-2">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-full blur-2xl animate-pulse" />
@@ -306,37 +265,62 @@ export default function ChildGreeting() {
             />
           </div>
 
-          <div className="space-y-1">
-            <p className="text-xl md:text-3xl font-semibold text-secondary text-red-500 leading-relaxed">
-              Hôm nay bé cảm thấy thế nào?
+         <div className="space-y-1">
+            <p className="text-xl md:text-3xl font-semibold text-pink-500 leading-relaxed drop-shadow-md">
+              Hôm nay bé cảm thấy thế nào? 🌼
             </p>
-            <p className="text-base md:text-xl text-muted-foreground">Chọn cảm xúc của bé nhé!</p>
+            <p className="text-base md:text-xl text-orange-400">
+              Chọn cảm xúc của bé nhé! 💖
+            </p>
           </div>
 
-          <div className="flex flex-col items-center gap-2 w-full max-w-md mt-3">
+
+          <div className="grid grid-cols-2 gap-3 w-full max-w-md mt-3">
             {emotions.map((emotion, index) => {
-              const { IconComponent, color, emoji } = getEmotionDisplayProps(emotion.label)
-              const isSelected = selectedEmotion === index
-              
-              return (
-                <Button
-                  key={emotion.id}
-                  onClick={() => handleEmotionSelect(index)}
-                  className={`
-                    ${color} 
-                    ${isSelected ? "ring-4 ring-ring scale-105" : ""}
-                    w-full h-16 md:h-24 flex items-center justify-start gap-3 px-4
-                    rounded-2xl shadow-lg hover:shadow-xl transition-all hover:scale-105
-                    text-white font-bold border-4 border-white/30
-                  `}
-                >
-                  <IconComponent className="w-10 h-10 md:w-14 md:h-14 flex-shrink-0" />
-                  <span className="text-lg md:text-2xl">{emotion.label}</span>
-                  <span className="text-2xl md:text-4xl ml-auto">{emoji}</span>
-                </Button>
-              )
-            })}
+              const colorMap: Record<string, string> = {
+                yellow: "bg-yellow-400 hover:bg-yellow-500",
+                pink: "bg-pink-400 hover:bg-pink-500",
+                sky: "bg-sky-400 hover:bg-sky-500",
+                indigo: "bg-indigo-400 hover:bg-indigo-500",
+                orange: "bg-orange-400 hover:bg-orange-500",
+                gray: "bg-gray-400 hover:bg-gray-500",
+              }
+
+                return (
+                  <Button
+                    key={emotion.id}
+                    onClick={() => handleEmotionSelect(index)}
+                    className={`
+                      ${selectedEmotion === index ? "ring-4 ring-white scale-105" : ""}
+                      w-full h-16 md:h-24 flex flex-col items-center justify-center gap-1 px-4
+                      rounded-2xl shadow-lg hover:shadow-xl transition-all hover:scale-105
+                      text-white font-bold border-4 border-white/50
+                      relative overflow-hidden
+                    `}
+                  >
+                    {/* Ảnh cảm xúc */}
+                    <div className="w-8 h-8 md:w-12 md:h-12 relative flex-shrink-0">
+                      <Image
+                        src={emotion.image || "/placeholder.svg"}
+                        alt={emotion.label}
+                        width={48}
+                        height={48}
+                        className="w-full h-full object-contain filter drop-shadow-md"
+                      />
+                    </div>
+                    
+                    {/* Nhãn cảm xúc */}
+                    <span className="text-xs md:text-sm font-bold text-center drop-shadow-md">
+                      {emotion.label}
+                    </span>
+
+                    {/* Hiệu ứng nền */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
+                  </Button>
+                )
+              })}
           </div>
+
 
           {Object.keys(dailyEmotions).length > 0 && (
             <div className="bg-accent/20 p-3 rounded-lg w-full max-w-md mt-2">
@@ -354,7 +338,7 @@ export default function ChildGreeting() {
           {selectedEmotion !== null && emotions[selectedEmotion] && (
             <div className="mt-3 p-4 bg-primary/20 rounded-3xl border-4 border-primary/30 animate-in fade-in slide-in-from-bottom-4">
               <p className="text-xl md:text-2xl font-bold text-primary">
-                Bé đang cảm thấy {emotions[selectedEmotion].label.toLowerCase()}! {getEmotionDisplayProps(emotions[selectedEmotion].label).emoji}
+                Bé đang cảm thấy {emotions[selectedEmotion].label.toLowerCase()}!
               </p>
             </div>
           )}

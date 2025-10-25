@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
-
 interface EmotionLog extends RowDataPacket {
   id: number;
   child_id: number;
@@ -11,6 +10,7 @@ interface EmotionLog extends RowDataPacket {
   emotion_id: number;
   emotion_label?: string;
   date: string;
+  session: string;
   created_at: string;
 }
 
@@ -19,28 +19,66 @@ interface Emotion extends RowDataPacket {
   label: string;
 }
 
-// GET: Lấy danh sách cảm xúc của bé
+// GET: Lấy danh sách cảm xúc với nhiều điều kiện lọc
 export async function GET(request: NextRequest) {
   let connection;
   try {
     const { searchParams } = new URL(request.url);
     const child_id = searchParams.get("child_id");
     const date = searchParams.get("date");
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    const lastDays = searchParams.get("lastDays");
+    const lastMonths = searchParams.get("lastMonths");
 
     connection = await db.getConnection();
+    
     let query = `
       SELECT el.*, e.label AS emotion_label
       FROM emotion_logs el
       JOIN emotions e ON el.emotion_id = e.id
+      WHERE 1=1
     `;
     const params: (string | number)[] = [];
-    if (child_id && date) {
-      query += " WHERE el.child_id = ? AND el.date = ?";
-      params.push(child_id, date);
+
+    // Lọc theo child_id
+    if (child_id) {
+      query += " AND el.child_id = ?";
+      params.push(child_id);
     }
+
+    // Lọc theo ngày cụ thể
+    if (date && !lastDays && !lastMonths) {
+      query += " AND el.date = ?";
+      params.push(date);
+    }
+
+    // Lọc theo khoảng thời gian
+    if (from && to) {
+      query += " AND el.date BETWEEN ? AND ?";
+      params.push(from, to);
+    }
+
+    // Lọc theo số ngày gần nhất
+    if (lastDays) {
+      query += " AND el.date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)";
+      params.push(parseInt(lastDays));
+    }
+
+    // Lọc theo số tháng gần nhất
+    if (lastMonths) {
+      query += " AND el.date >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)";
+      params.push(parseInt(lastMonths));
+    }
+
     query += " ORDER BY el.date DESC, el.created_at DESC";
 
+    console.log("📋 Query:", query);
+    console.log("📋 Params:", params);
+
     const [rows] = await connection.execute<EmotionLog[]>(query, params);
+    console.log("📥 Kết quả trả về:", rows.length, "bản ghi");
+    
     return NextResponse.json(rows);
   } catch (error) {
     console.error("❌ Lỗi GET emotion_logs:", error);
@@ -50,7 +88,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Thêm cảm xúc mới (tối đa 2 lần mỗi ngày: morning/afternoon)
+// POST: Thêm cảm xúc mới (giữ nguyên như cũ)
 export async function POST(request: NextRequest) {
   let connection;
   try {

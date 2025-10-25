@@ -5,18 +5,31 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, QrCode, Pencil, Trash2, Loader2 } from "lucide-react"
 import { QRCodeGenerator } from "@/components/qr-code-generator"
+import { toast } from "sonner" // Giả sử dùng sonner cho toast, hoặc thay bằng alert nếu chưa có
 
 type Student = {
   id: string
+  sbd: number
+  user_id: number
   name: string
-  studentCode: string
-  class: string
-  dateOfBirth: string
+  gender: string
+  age: number
+  dob: string
+  lop: string
+  parent: string
+  phone: string
+  address: string | null
+  qrBase64?: string | null
+  avatar?: string | null
   createdAt: string
+  studentCode: string
+  class: string // Alias for lop in display
+  dateOfBirth: string // Alias for dob in display
 }
 
 type BeInfo = {
@@ -25,6 +38,14 @@ type BeInfo = {
   lop: string
   dob: string
   created_at?: string
+  user_id: number
+  gender: string
+  age: number
+  parent: string
+  phone: string
+  address: string | null
+  qrBase64?: string | null
+  avatar?: string | null
 }
 
 export default function StudentsPage() {
@@ -35,12 +56,28 @@ export default function StudentsPage() {
   const [showQRCode, setShowQRCode] = useState<Student | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
+  const [uploading, setUploading] = useState(false) // Thêm state cho upload
+  const userStr = localStorage.getItem("user");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const userId = user?.id;
+  if (!userId) {
+    // Redirect nếu không có userId
+    useEffect(() => {
+      window.location.href = '/login'
+    }, [])
+    return null
+  }
   const [formData, setFormData] = useState({
     name: "",
-    studentCode: "",
-    class: "",
+    gender: "",
+    age: 0,
     dateOfBirth: "",
+    class: "",
+    parent: "",
+    phone: "",
+    address: "",
+    avatar: "",
+    studentCode: "",
   })
 
   // 🔥 Load students từ API MySQL (tương tự /api/bes)
@@ -49,19 +86,35 @@ export default function StudentsPage() {
       try {
         setLoading(true)
         setError(null)
-        const response = await fetch('/api/bes')  // Hoặc /api/students nếu bạn tạo riêng
+        const response = await fetch('/api/bes', {
+          headers: {
+            'user-id': userId.toString(),
+          },
+        })
         if (!response.ok) {
           throw new Error('Lỗi load danh sách học sinh')
         }
         const data = await response.json()
-        // Map data từ BeInfo sang Student (adjust nếu cần)
+        console.log('Fetched data:', data) // Debug: Log data fetch
+        // Map data từ BeInfo sang Student (đầy đủ fields)
         const mappedStudents: Student[] = data.map((be: BeInfo) => ({
           id: be.sbd.toString(),  // Dùng sbd làm id
+          sbd: be.sbd,
+          user_id: be.user_id,
           name: be.name,
+          gender: be.gender,
+          age: be.age,
+          dob: be.dob,
+          lop: be.lop,
+          parent: be.parent,
+          phone: be.phone,
+          address: be.address,
+          qrBase64: be.qrBase64,
+          avatar: be.avatar,
+          createdAt: be.created_at || new Date().toISOString(),
           studentCode: be.sbd.toString().padStart(3, '0'),  // Ví dụ: 001 cho sbd=1
           class: be.lop,
           dateOfBirth: be.dob,
-          createdAt: be.created_at || new Date().toISOString(),
         }))
         setStudents(mappedStudents)
       } catch (err) {
@@ -72,74 +125,255 @@ export default function StudentsPage() {
       }
     }
     fetchStudents()
-  }, [])
+  }, [userId])
 
   const handleAddStudent = async () => {
+    if (!formData.name || !formData.dateOfBirth || !formData.class) {
+      toast.error('Vui lòng điền họ tên, ngày sinh và lớp.')
+      return
+    }
     try {
+      const newSbd = Math.max(...students.map(s => s.sbd), 0) + 1 // Tính sbd mới an toàn hơn
       const newStudentData = {
-        sbd: students.length + 1,  // Tự generate sbd (hoặc từ backend)
+        sbd: newSbd,
+        user_id: userId,
         name: formData.name,
-        gender: 'Nam',  // Default, adjust nếu cần
-        age: 0,  // Default
+        gender: formData.gender || 'Nam',  // Default nếu trống
+        age: formData.age || 0,
         dob: formData.dateOfBirth,
         lop: formData.class,
-        parent: 'Cha mẹ',  // Default
-        phone: '',  // Default
-        address: '',  // Default
+        parent: formData.parent || 'Cha mẹ',
+        phone: formData.phone || '',
+        address: formData.address || null,
+        avatar: formData.avatar || null,
       }
+      console.log('Adding student data:', newStudentData) // Debug: Log data trước POST
       const response = await fetch('/api/bes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'user-id': userId.toString(), // Thêm header nếu API cần
+        },
         body: JSON.stringify({ bes: [newStudentData] })
       })
-      if (!response.ok) throw new Error('Lỗi thêm học sinh')
-      // Reload list
-      window.location.reload()  // Simple reload, hoặc refetch như fetchStudents()
-      setFormData({ name: "", studentCode: "", class: "", dateOfBirth: "" })
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Lỗi thêm học sinh')
+      }
+      // Refetch thay vì reload để tránh flash
+      const fetchStudents = async () => {
+        try {
+          const res = await fetch('/api/bes', {
+            headers: { 'user-id': userId.toString() },
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const mappedStudents: Student[] = data.map((be: BeInfo) => ({
+              id: be.sbd.toString(),
+              sbd: be.sbd,
+              user_id: be.user_id,
+              name: be.name,
+              gender: be.gender,
+              age: be.age,
+              dob: be.dob,
+              lop: be.lop,
+              parent: be.parent,
+              phone: be.phone,
+              address: be.address,
+              qrBase64: be.qrBase64,
+              avatar: be.avatar,
+              createdAt: be.created_at || new Date().toISOString(),
+              studentCode: be.sbd.toString().padStart(3, '0'),
+              class: be.lop,
+              dateOfBirth: be.dob,
+            }))
+            setStudents(mappedStudents)
+          }
+        } catch (err) {
+          console.error('Refetch error:', err)
+        }
+      }
+      await fetchStudents()
+      setFormData({ 
+        name: "", 
+        gender: "", 
+        age: 0, 
+        dateOfBirth: "", 
+        class: "", 
+        parent: "", 
+        phone: "", 
+        address: "", 
+        avatar: "", 
+        studentCode: "" 
+      })
       setIsAddDialogOpen(false)
+      toast.success('Thêm học sinh thành công!')
     } catch (err) {
-      alert('Lỗi thêm học sinh: ' + (err as Error).message)
+      console.error('Add error:', err)
+      toast.error('Lỗi thêm học sinh: ' + (err as Error).message)
+    }
+  }
+
+  const handleUploadImage = async (file: File) => {
+    if (!file) return null
+    setUploading(true)
+    try {
+      const formDataImg = new FormData()
+      formDataImg.append("file", file)
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formDataImg,
+      })
+      if (!res.ok) {
+        throw new Error('Upload failed')
+      }
+      const data = await res.json()
+      console.log('Upload success, URL:', data.secure_url) // Debug: Log URL
+      return data.secure_url  // ✅ link ảnh
+    } catch (err) {
+      console.error('Upload error:', err)
+      toast.error('Lỗi upload ảnh: ' + (err as Error).message)
+      return null
+    } finally {
+      setUploading(false)
     }
   }
 
   const handleEditStudent = async () => {
-    if (!selectedStudent) return
+    if (!selectedStudent || !formData.name || !formData.dateOfBirth || !formData.class) {
+      toast.error('Vui lòng điền họ tên, ngày sinh và lớp.')
+      return
+    }
     try {
       const updatedData = {
-        sbd: parseInt(selectedStudent.id),
+        user_id: userId,
+        sbd: selectedStudent.sbd,
         name: formData.name,
-        gender: 'Nam',  // Adjust nếu có field gender
-        age: 0,
-        dob: formData.dateOfBirth,
+        gender: formData.gender || selectedStudent.gender,  // Giữ cũ nếu trống
+        age: formData.age !== undefined ? formData.age : selectedStudent.age,
+        dob: formData.dateOfBirth || selectedStudent.dateOfBirth,
         lop: formData.class,
-        parent: 'Cha mẹ',
-        phone: '',
-        address: '',
+        parent: formData.parent || selectedStudent.parent,
+        phone: formData.phone || selectedStudent.phone,
+        address: formData.address !== undefined ? (formData.address || null) : selectedStudent.address,
+        avatar: formData.avatar || selectedStudent.avatar || null,
       }
+      console.log('Updating student data:', updatedData) // Debug: Log data trước POST
       const response = await fetch('/api/bes', {
         method: 'POST',  // Upsert via POST batch
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'user-id': userId.toString(), // Thêm header nếu cần
+        },
         body: JSON.stringify({ bes: [updatedData] })
       })
-      if (!response.ok) throw new Error('Lỗi cập nhật học sinh')
-      window.location.reload()
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Lỗi cập nhật học sinh')
+      }
+      // Refetch thay vì reload
+      const fetchStudents = async () => {
+        try {
+          const res = await fetch('/api/bes', {
+            headers: { 'user-id': userId.toString() },
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const mappedStudents: Student[] = data.map((be: BeInfo) => ({
+              id: be.sbd.toString(),
+              sbd: be.sbd,
+              user_id: be.user_id,
+              name: be.name,
+              gender: be.gender,
+              age: be.age,
+              dob: be.dob,
+             lop: be.lop,
+              parent: be.parent,
+              phone: be.phone,
+              address: be.address,
+              qrBase64: be.qrBase64,
+              avatar: be.avatar,
+              createdAt: be.created_at || new Date().toISOString(),
+              studentCode: be.sbd.toString().padStart(3, '0'),
+              class: be.lop,
+              dateOfBirth: be.dob,
+            }))
+            setStudents(mappedStudents)
+          }
+        } catch (err) {
+          console.error('Refetch error:', err)
+        }
+      }
+      await fetchStudents()
       setIsEditDialogOpen(false)
       setSelectedStudent(null)
-      setFormData({ name: "", studentCode: "", class: "", dateOfBirth: "" })
+      setFormData({ 
+        name: "", 
+        gender: "", 
+        age: 0, 
+        dateOfBirth: "", 
+        class: "", 
+        parent: "", 
+        phone: "", 
+        address: "", 
+        avatar: "", 
+        studentCode: "" 
+      })
+      toast.success('Cập nhật học sinh thành công!')
     } catch (err) {
-      alert('Lỗi cập nhật: ' + (err as Error).message)
+      console.error('Edit error:', err)
+      toast.error('Lỗi cập nhật: ' + (err as Error).message)
     }
   }
 
   const handleDeleteStudent = async (id: string) => {
     if (!confirm("Bạn có chắc chắn muốn xóa học sinh này?")) return
     try {
-      // Note: Cần tạo API DELETE /api/bes/[id] nếu chưa có
-      const response = await fetch(`/api/bes/${id}`, { method: 'DELETE' })
+      // Note: Cần tạo API DELETE /api/bes/[id] nếu chưa có. Tạm dùng POST với flag delete
+      // Hoặc implement DELETE endpoint
+      const response = await fetch(`/api/bes/${id}`, { 
+        method: 'DELETE',
+        headers: { 'user-id': userId.toString() },
+      })
       if (!response.ok) throw new Error('Lỗi xóa học sinh')
-      window.location.reload()
+      // Refetch
+      const fetchStudents = async () => {
+        try {
+          const res = await fetch('/api/bes', {
+            headers: { 'user-id': userId.toString() },
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const mappedStudents: Student[] = data.map((be: BeInfo) => ({
+              id: be.sbd.toString(),
+              sbd: be.sbd,
+              user_id: be.user_id,
+              name: be.name,
+              gender: be.gender,
+              age: be.age,
+              dob: be.dob,
+              lop: be.lop,
+              parent: be.parent,
+              phone: be.phone,
+              address: be.address,
+              qrBase64: be.qrBase64,
+              avatar: be.avatar,
+              createdAt: be.created_at || new Date().toISOString(),
+              studentCode: be.sbd.toString().padStart(3, '0'),
+              class: be.lop,
+              dateOfBirth: be.dob,
+            }))
+            setStudents(mappedStudents)
+          }
+        } catch (err) {
+          console.error('Refetch error:', err)
+        }
+      }
+      await fetchStudents()
+      toast.success('Xóa học sinh thành công!')
     } catch (err) {
-      alert('Lỗi xóa: ' + (err as Error).message)
+      toast.error('Lỗi xóa: ' + (err as Error).message)
     }
   }
 
@@ -147,9 +381,15 @@ export default function StudentsPage() {
     setSelectedStudent(student)
     setFormData({
       name: student.name,
-      studentCode: student.studentCode,
-      class: student.class,
+      gender: student.gender,
+      age: student.age,
       dateOfBirth: student.dateOfBirth,
+      class: student.class,
+      parent: student.parent,
+      phone: student.phone,
+      address: student.address || "",
+      avatar: student.avatar || "",
+      studentCode: student.studentCode,
     })
     setIsEditDialogOpen(true)
   }
@@ -186,7 +426,7 @@ export default function StudentsPage() {
               Thêm học sinh
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Thêm học sinh mới</DialogTitle>
             </DialogHeader>
@@ -207,6 +447,26 @@ export default function StudentsPage() {
                   value={formData.studentCode}
                   onChange={(e) => setFormData({ ...formData, studentCode: e.target.value })}
                   placeholder="HS001"
+                  disabled // Tạm disable vì auto sbd
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gender">Giới tính</Label>
+                <Input
+                  id="gender"
+                  value={formData.gender}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                  placeholder="Nam / Nữ"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="age">Tuổi</Label>
+                <Input
+                  id="age"
+                  type="number"
+                  value={formData.age}
+                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
+                  placeholder="18"
                 />
               </div>
               <div className="space-y-2">
@@ -227,7 +487,62 @@ export default function StudentsPage() {
                   onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                 />
               </div>
-              <Button onClick={handleAddStudent} className="w-full">
+              <div className="space-y-2">
+                <Label htmlFor="parent">Tên phụ huynh</Label>
+                <Input
+                  id="parent"
+                  value={formData.parent}
+                  onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
+                  placeholder="Cha mẹ"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Số điện thoại</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="0123456789"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Địa chỉ</Label>
+                <Textarea
+                  id="address"
+                  value={formData.address || ''}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Địa chỉ nhà..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="avatar">Ảnh đại diện</Label>
+                <Input
+                  id="avatar"
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      const url = await handleUploadImage(file)
+                      if (url) {
+                        setFormData({ ...formData, avatar: url })
+                      }
+                    }
+                  }}
+                />
+                {uploading && <p className="text-sm text-muted-foreground">Đang upload...</p>}
+                {formData.avatar && !uploading && (
+                  <img
+                    src={formData.avatar}
+                    alt="Preview"
+                    className="mt-2 w-24 h-24 object-cover rounded-full border"
+                  />
+                )}
+              </div>
+              <Button onClick={handleAddStudent} className="w-full" disabled={uploading}>
+                {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Thêm học sinh
               </Button>
             </div>
@@ -250,8 +565,11 @@ export default function StudentsPage() {
                 <TableRow>
                   <TableHead>Mã học sinh</TableHead>
                   <TableHead>Họ và tên</TableHead>
+                  <TableHead>Ảnh</TableHead>
                   <TableHead>Lớp</TableHead>
                   <TableHead>Ngày sinh</TableHead>
+                  <TableHead>Giới tính</TableHead>
+                  <TableHead>Tuổi</TableHead>
                   <TableHead className="text-right">Hành động</TableHead>
                 </TableRow>
               </TableHeader>
@@ -260,8 +578,19 @@ export default function StudentsPage() {
                   <TableRow key={student.id}>
                     <TableCell className="font-medium">{student.studentCode}</TableCell>
                     <TableCell>{student.name}</TableCell>
+                    <TableCell>
+                      {student.avatar ? (
+                        <img src={student.avatar} alt={student.name} className="w-12 h-12 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                          N/A
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>{student.class}</TableCell>
                     <TableCell>{new Date(student.dateOfBirth).toLocaleDateString("vi-VN")}</TableCell>
+                    <TableCell>{student.gender}</TableCell>
+                    <TableCell>{student.age}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" size="sm" onClick={() => setShowQRCode(student)}>
@@ -285,11 +614,19 @@ export default function StudentsPage() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Chỉnh sửa thông tin học sinh</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-studentCode">Mã học sinh</Label>
+              <Input
+                id="edit-studentCode"
+                value={formData.studentCode}
+                disabled // Không chỉnh sửa sbd
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="edit-name">Họ và tên</Label>
               <Input
@@ -299,11 +636,20 @@ export default function StudentsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-studentCode">Mã học sinh</Label>
+              <Label htmlFor="edit-gender">Giới tính</Label>
               <Input
-                id="edit-studentCode"
-                value={formData.studentCode}
-                onChange={(e) => setFormData({ ...formData, studentCode: e.target.value })}
+                id="edit-gender"
+                value={formData.gender}
+                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-age">Tuổi</Label>
+              <Input
+                id="edit-age"
+                type="number"
+                value={formData.age}
+                onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
               />
             </div>
             <div className="space-y-2">
@@ -323,7 +669,55 @@ export default function StudentsPage() {
                 onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
               />
             </div>
-            <Button onClick={handleEditStudent} className="w-full">
+            <div className="space-y-2">
+              <Label htmlFor="edit-parent">Tên phụ huynh</Label>
+              <Input
+                id="edit-parent"
+                value={formData.parent}
+                onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Số điện thoại</Label>
+              <Input
+                id="edit-phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-address">Địa chỉ</Label>
+              <Textarea
+                id="edit-address"
+                value={formData.address || ''}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="avatar">Ảnh đại diện</Label>
+              <Input
+                id="avatar"
+                type="file"
+                accept="image/*"
+                disabled={uploading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (file) {
+                    const url = await handleUploadImage(file)
+                    if (url) {
+                      setFormData({ ...formData, avatar: url }) // ✅ Lưu URL Firebase/Cloudinary
+                    }
+                  }
+                }}
+              />
+              {uploading && <p className="text-sm text-muted-foreground">Đang upload...</p>}
+              {/* {formData.avatar && !uploading && (
+                <img src={formData.avatar} alt="Preview" className="mt-2 w-24 h-24 object-cover rounded-full border" />
+              )} */}
+            </div>
+            <Button onClick={handleEditStudent} className="w-full" disabled={uploading}>
+              {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Cập nhật
             </Button>
           </div>

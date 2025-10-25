@@ -15,6 +15,7 @@
     phone: string
     address: string | null
     qr_base64?: string | null
+    avatar?: string | null 
     created_at?: Date
   }
 
@@ -31,6 +32,7 @@
     phone: string
     address: string | null
     qrBase64?: string | null
+    avatar?: string | null 
     created_at?: string
   }
 
@@ -47,6 +49,7 @@
       ...rest,
       dob: row.dob ? row.dob.toISOString().split('T')[0] : '',
       qrBase64: qr_base64 || null,
+      avatar: row.avatar || null,
       created_at: row.created_at ? row.created_at.toISOString() : '',
     }
   }
@@ -59,28 +62,23 @@
       if (!db) {
         throw new Error('DB pool không tồn tại! Kiểm tra import hoặc config env.')
       }
-      console.log('✅ DB pool OK')
 
       connection = await db.getConnection()
       if (!connection || typeof connection.execute !== 'function') {
         throw new Error('Connection không hợp lệ! getConnection() trả về undefined hoặc sai object.')
       }
-      console.log('✅ Connection OK')
 
       // Ping để verify connection thực sự live
       await connection.ping()
-      console.log('✅ Ping DB thành công')
 
       let query = 'SELECT * FROM bes ORDER BY sbd ASC'
       const params: number[] = []
       if (userId) {
         query = 'SELECT * FROM bes WHERE user_id = ? ORDER BY sbd ASC'
         params.push(userId)
-        console.log(`✅ Filtering by user_id: ${userId}`)
       }
 
       const [rows]: [DbBeInfo[], FieldPacket[]] = await connection.execute(query, params)
-      console.log(`✅ Query OK, rows length: ${rows ? rows.length : 'undefined'}`)
 
       if (!rows) {
         throw new Error('Rows undefined sau execute! Kiểm tra query hoặc DB schema.')
@@ -107,49 +105,72 @@
   }
 
   // POST: Upsert (insert/update) danh sách bé theo stt
-  export async function POST(request: NextRequest) {
-    let connection: PoolConnection | null = null
-    try {
-      const { bes }: { bes: BeInfo[] } = await request.json()
-      if (!bes || !Array.isArray(bes)) {
-        return NextResponse.json({ error: 'Invalid data' }, { status: 400 })
-      }
-
-      connection = await db.getConnection()
-      await connection.beginTransaction()
-
-      for (const be of bes) {
-        // Map camel → snake cho insert
-        await connection.execute(
-          `INSERT INTO bes (sbd, user_id, name, gender, age, dob, lop, parent, phone, address, qr_base64) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
-          ON DUPLICATE KEY UPDATE 
-          user_id=VALUES(user_id), name=VALUES(name), gender=VALUES(gender), age=VALUES(age),
-          dob=VALUES(dob), lop=VALUES(lop), parent=VALUES(parent), phone=VALUES(phone),
-          address=VALUES(address), qr_base64=VALUES(qr_base64)`,
-          [
-            be.sbd,
-            be.user_id,
-            be.name,
-            be.gender,
-            be.age,
-            be.dob,  // Assume string YYYY-MM-DD, mysql sẽ parse
-            be.lop,
-            be.parent,
-            be.phone,
-            be.address,
-            be.qrBase64 ?? null,
-          ]
-        )
-      }
-
-      await connection.commit()
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      if (connection) await connection.rollback()
-      console.error('❌ Lỗi POST bes:', error)
-      return NextResponse.json({ error: 'Lỗi save data' }, { status: 500 })
-    } finally {
-      if (connection) connection.release()
+// ======================= POST =======================
+export async function POST(request: NextRequest) {
+  let connection: PoolConnection | null = null
+  try {
+    const { bes }: { bes: BeInfo[] } = await request.json()
+    if (!bes || !Array.isArray(bes)) {
+      return NextResponse.json({ error: 'Invalid data' }, { status: 400 })
     }
+
+    connection = await db.getConnection()
+    await connection.beginTransaction()
+
+    for (const be of bes) {
+      // 🔹 Giữ QR cũ nếu không có QR mới
+      let qrBase64 = be.qrBase64 ?? null
+
+      if (!qrBase64) {
+        const [rows]: [DbBeInfo[], FieldPacket[]] = await connection.execute(
+          'SELECT qr_base64 FROM bes WHERE sbd = ? AND user_id = ?',
+          [be.sbd, be.user_id]
+        )
+        if (rows.length > 0 && rows[0].qr_base64) {
+          qrBase64 = rows[0].qr_base64
+        }
+      }
+
+      console.log('Upserting be:', { ...be, qrBase64 })
+
+      await connection.execute(
+        `INSERT INTO bes (sbd, user_id, name, gender, age, dob, lop, parent, phone, address, qr_base64, avatar)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           user_id = VALUES(user_id),
+           name = VALUES(name),
+           gender = VALUES(gender),
+           age = VALUES(age),
+           dob = VALUES(dob),
+           lop = VALUES(lop),
+           parent = VALUES(parent),
+           phone = VALUES(phone),
+           address = VALUES(address),
+           avatar = VALUES(avatar)`,
+        [
+          be.sbd,
+          be.user_id,
+          be.name,
+          be.gender,
+          be.age,
+          be.dob,
+          be.lop,
+          be.parent,
+          be.phone,
+          be.address,
+          qrBase64,
+          be.avatar ?? null,
+        ]
+      )
+    }
+
+    await connection.commit()
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    if (connection) await connection.rollback()
+    console.error('❌ Lỗi POST bes:', error)
+    return NextResponse.json({ error: 'Lỗi save data' }, { status: 500 })
+  } finally {
+    if (connection) connection.release()
   }
+}

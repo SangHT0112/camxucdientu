@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(rows[0]);
     } else {
       const [rows] = await connection.execute<Emotion[]>(
-        "SELECT * FROM emotions ORDER BY created_at DESC"
+        "SELECT * FROM emotions ORDER BY id ASC"
       );
       return NextResponse.json(rows);
     }
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const label = formData.get("label") as string;
     const message = (formData.get("message") as string) || "";
-    const color = (formData.get("color") as string) || "#3b82f6";
+    const color = (formData.get("color") as string) || null;
     
     // Image
     let image = "";
@@ -138,7 +138,7 @@ export async function PUT(request: NextRequest) {
     const id = parseInt(formData.get("id") as string || "0");
     const label = formData.get("label") as string;
     const message = (formData.get("message") as string) || "";
-    const color = (formData.get("color") as string) || "#3b82f6";
+    const color = (formData.get("color") as string) || null;
     
     // Image
     let image = "";
