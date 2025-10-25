@@ -22,7 +22,7 @@ interface ApiQuestion {
   explanation: string;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   let connection: PoolConnection | null = null;
   try {
     connection = await db.getConnection();

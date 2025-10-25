@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, QrCode, Pencil, Trash2, Loader2 } from "lucide-react"
 import { QRCodeGenerator } from "@/components/qr-code-generator"
 import { toast } from "sonner" // Giả sử dùng sonner cho toast, hoặc thay bằng alert nếu chưa có
+import Image from "next/image"
 
 type Student = {
   id: string
@@ -57,16 +58,6 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false) // Thêm state cho upload
-  const userStr = localStorage.getItem("user");
-  const user = userStr ? JSON.parse(userStr) : null;
-  const userId = user?.id;
-  if (!userId) {
-    // Redirect nếu không có userId
-    useEffect(() => {
-      window.location.href = '/login'
-    }, [])
-    return null
-  }
   const [formData, setFormData] = useState({
     name: "",
     gender: "",
@@ -80,8 +71,25 @@ export default function StudentsPage() {
     studentCode: "",
   })
 
+  const [userId, setUserId] = useState<number | null>(null);
+
+  // Redirect nếu không có userId
+  // Di chuyển logic localStorage vào useEffect (chỉ chạy client-side)
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    const user = userStr ? JSON.parse(userStr) : null;
+    const id = user?.id;
+    setUserId(id);
+
+    // Redirect nếu không có userId
+    if (!id) {
+      window.location.href = '/login';
+    }
+  }, []); // Dependency rỗng vì chỉ chạy 1 lần
+
   // 🔥 Load students từ API MySQL (tương tự /api/bes)
   useEffect(() => {
+    if (!userId) return;
     const fetchStudents = async () => {
       try {
         setLoading(true)
@@ -126,6 +134,20 @@ export default function StudentsPage() {
     }
     fetchStudents()
   }, [userId])
+
+  // Early return nếu chưa có userId (tránh render khi loading)
+  if (userId === null) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Đang kiểm tra...</span>
+      </div>
+    );
+  }
+
+  if (!userId) {
+    return null; // Hoặc redirect ở useEffect đã handle
+  }
 
   const handleAddStudent = async () => {
     if (!formData.name || !formData.dateOfBirth || !formData.class) {
@@ -534,9 +556,11 @@ export default function StudentsPage() {
                 />
                 {uploading && <p className="text-sm text-muted-foreground">Đang upload...</p>}
                 {formData.avatar && !uploading && (
-                  <img
+                  <Image
                     src={formData.avatar}
                     alt="Preview"
+                    width={96}
+                    height={96}
                     className="mt-2 w-24 h-24 object-cover rounded-full border"
                   />
                 )}
@@ -580,7 +604,7 @@ export default function StudentsPage() {
                     <TableCell>{student.name}</TableCell>
                     <TableCell>
                       {student.avatar ? (
-                        <img src={student.avatar} alt={student.name} className="w-12 h-12 rounded-full object-cover" />
+                        <Image src={student.avatar} alt={student.name} width={48} height={48} className="w-12 h-12 rounded-full object-cover" />
                       ) : (
                         <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
                           N/A
@@ -712,9 +736,15 @@ export default function StudentsPage() {
                 }}
               />
               {uploading && <p className="text-sm text-muted-foreground">Đang upload...</p>}
-              {/* {formData.avatar && !uploading && (
-                <img src={formData.avatar} alt="Preview" className="mt-2 w-24 h-24 object-cover rounded-full border" />
-              )} */}
+              {formData.avatar && !uploading && (
+                <Image
+                  src={formData.avatar}
+                  alt="Preview"
+                  width={96}
+                  height={96}
+                  className="mt-2 w-24 h-24 object-cover rounded-full border"
+                />
+              )}
             </div>
             <Button onClick={handleEditStudent} className="w-full" disabled={uploading}>
               {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
