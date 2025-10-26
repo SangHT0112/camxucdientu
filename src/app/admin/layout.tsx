@@ -25,7 +25,11 @@ export default function AdminLayout({
     <div className="flex min-h-screen flex-col bg-background">
       {/* Top Navigation */}
       <header className="border-b bg-card shadow-sm sticky top-0 z-10">
-        <div className="p-4 border-b">
+        <div className="p-4 border-b flex gap-">
+         <Link href="/" className="mt-2 px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 inline-block">
+            Home
+          </Link>
+
           <h2 className="text-xl font-bold">Admin Panel</h2>
         </div>
        <nav className="flex flex-wrap justify-around pb-2 border-b bg-card">

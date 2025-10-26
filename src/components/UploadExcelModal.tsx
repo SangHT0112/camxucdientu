@@ -51,13 +51,23 @@ export function UploadExcelModal({ onUploadSuccess, beList }: UploadExcelModalPr
           const sheetName = workbook.SheetNames[0]
           const worksheet = workbook.Sheets[sheetName]
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | boolean | Date)[][]
-          const userId = Number(localStorage.getItem("user_id")) || 1
+          
+          // ✅ Lấy userId từ key "user" (JSON), không dùng "user_id" || 1
+          const userStr = localStorage.getItem("user")
+          const user = userStr ? JSON.parse(userStr) : null
+          const userId = user?.id
+          if (!userId) {
+            toast.error("Không tìm thấy user ID. Vui lòng đăng nhập lại.")
+            window.location.href = '/login'
+            return
+          }
+          console.log('UploadExcel: Loaded user ID:', userId) // 🔍 Debug: Sẽ log 3 thay vì 1
+
           const parsedBeListTemp = jsonData
             .slice(1)
             .map((row: (string | number | boolean | Date)[]) => ({
-              id: row[0] as number, // Add id as sbd
               sbd: row[0] as number,
-              user_id: userId,
+              user_id: userId,  // ✅ Thêm để satisfy BeInfo type (API bỏ qua)
               name: row[1] as string,
               gender: row[2] as string,
               age: row[3] as number,
@@ -66,42 +76,53 @@ export function UploadExcelModal({ onUploadSuccess, beList }: UploadExcelModalPr
               parent: row[6] as string,
               phone: row[7] as string,
               address: (row[8] as string) || '', // Ensure string
-            }))
+            } as BeInfo))  // ✅ Cast to BeInfo
             .filter((be) => be.sbd)
+
+          if (parsedBeListTemp.length === 0) {
+            toast.error("Không có dữ liệu hợp lệ trong file Excel.")
+            return
+          }
 
           setGeneratingQR(true)
 
           const qrPromises = parsedBeListTemp.map((be) => generateQRForBe(be))
           const qrBase64List = await Promise.all(qrPromises)
 
-          // Batch save to MySQL API (without id if API doesn't expect it, but add for callback)
+          // Batch save to MySQL API (include user_id for type, but API cleans it)
+          const besWithQR = parsedBeListTemp.map((be, index) => ({ 
+            ...be, 
+            qrBase64: qrBase64List[index] 
+          })) as BeInfo[]  // ✅ Cast to BeInfo[]
           try {
             const response = await fetch('/api/bes', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                'user-id': userId.toString(),  // ✅ Header: Sẽ gửi 3
+              },
               body: JSON.stringify({
-                bes: parsedBeListTemp.map((be, index) => ({ ...be, qrBase64: qrBase64List[index] }))
+                bes: besWithQR
               })
             })
             if (!response.ok) {
-              throw new Error(`API error: ${response.status}`)
+              const errData = await response.json().catch(() => ({}))
+              throw new Error(errData.error || `API error: ${response.status}`)
             }
-            console.log("Lưu thành công vào MySQL!")
+            console.log("Lưu thành công vào MySQL với user_id:", userId) // 🔍 Debug
           } catch (mysqlError) {
             console.error("Lỗi lưu MySQL:", mysqlError)
-            const parsedBeListWithQR = parsedBeListTemp.map((be, index) => ({ ...be, qrBase64: qrBase64List[index] }))
-            localStorage.setItem("beList", JSON.stringify(parsedBeListWithQR))
             toast.error("Lưu localStorage (MySQL lỗi). Kiểm tra kết nối DB.")
-            onUploadSuccess(parsedBeListWithQR)
+            localStorage.setItem("beList", JSON.stringify(besWithQR))
+            onUploadSuccess(besWithQR)
             setShowUploadModal(false)
             setGeneratingQR(false)
             return
           }
 
-          const parsedBeListWithQR = parsedBeListTemp.map((be, index) => ({ ...be, qrBase64: qrBase64List[index] }))
-          onUploadSuccess(parsedBeListWithQR)
-          localStorage.setItem("beList", JSON.stringify(parsedBeListWithQR))
-          toast.success(`Đã upload thành công ${parsedBeListWithQR.length} bé và tạo QR! Lưu MySQL + local. 📚✨`)
+          onUploadSuccess(besWithQR)
+          // Bỏ localStorage fallback nếu API success (trust DB)
+          toast.success(`Đã upload thành công ${besWithQR.length} bé và tạo QR! Lưu MySQL. 📚✨`)
           setShowUploadModal(false)
         } catch (error) {
           console.error("Lỗi upload:", error)
