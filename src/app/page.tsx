@@ -13,20 +13,9 @@ import { useDropzone } from "react-dropzone"
 import QRCode from "qrcode"
 import JSZip from "jszip"
 import { Scanner } from "@yudiel/react-qr-scanner"
-
-interface BeInfo {
-  sbd: number
-  name: string
-  gender: string
-  age: number
-  dob: string
-  lop: string
-  parent: string
-  phone: string
-  address: string
-  qrBase64?: string
-  user_id: number    
-}
+import { UploadExcelModal } from "@/components/UploadExcelModal" // Import new component
+import { DownloadQRButton } from "@/components/DownloadQRButton"
+import { BeInfo } from "@/types/BeInfo"
 
 // 🔥 Fix: Thêm interface cho QR Code result
 interface QrCodeResult {
@@ -359,6 +348,11 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
   }
 };
 
+// Callback for upload success
+  const handleUploadSuccess = (newBeList: BeInfo[]) => {
+    setBeList(newBeList)
+  }
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
@@ -381,82 +375,12 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
         </Button>
       </div>
 
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
-        {/* Upload Excel Button */}
-        <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
-          <DialogTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleUploadClick}
-              className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border-2 border-primary/50 bg-secondary/90 hover:bg-secondary text-secondary-foreground font-bold backdrop-blur min-w-[80px] justify-center"
-              disabled={generatingQR}
-            >
-              {generatingQR ? <Loader2 className="w-5 h-5 hidden md:block animate-spin" /> : <Upload className="w-5 h-5 hidden md:block" />}
-              <span className="ml-0 md:ml-2 text-xs md:text-sm">{generatingQR ? "Đang tạo QR..." : "Upload Excel"}</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-center">Upload file Excel danh sách bé</DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col items-center gap-4 p-6">
-              <div
-                {...getRootProps()}
-                className={`w-full p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${
-                  isDragActive ? "border-primary bg-primary/10" : "border-muted-foreground/50 hover:border-primary/50"
-                }`}
-              >
-                <input {...getInputProps()} />
-                {isDragActive ? (
-                  <p className="text-lg font-semibold text-primary">Thả file Excel vào đây! 📁</p>
-                ) : (
-                  <>
-                    <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-lg font-semibold">Kéo thả file Excel (.xlsx) vào đây hoặc click để chọn</p>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Sau upload, sẽ tự động tạo QR cho từng bé và lưu vĩnh viễn.
-                    </p>
-                  </>
-                )}
-              </div>
-              {beList.length > 0 && (
-                <div className="w-full bg-accent/20 p-4 rounded-lg">
-                  <p className="font-semibold">Danh sách đã upload ({beList.length} bé):</p>
-                  <ul className="text-sm max-h-32 overflow-y-auto">
-                    {beList.slice(0, 5).map((be, idx) => (
-                      <li key={idx} className="flex justify-between items-center">
-                        <span>
-                          {be.name} ({be.lop})
-                        </span>
-                        <span className="text-xs">{be.sbd}</span>
-                        {be.qrBase64 && <span className="text-xs text-green-600">✅ QR sẵn</span>}
-                      </li>
-                    ))}
-                    {beList.length > 5 && (
-                      <li className="text-xs text-muted-foreground">... và {beList.length - 5} bé nữa</li>
-                    )}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+     <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+        {/* Upload Excel Button - Now a separate component */}
+        <UploadExcelModal onUploadSuccess={handleUploadSuccess} beList={beList} />
 
-        {/* Download QR ZIP Button */}
-        {beList.length > 0 && (
-          <Button
-            size="sm"
-            onClick={handleDownloadAllQR}
-            disabled={downloadingZip}
-            className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 bg-secondary/90 hover:bg-secondary text-secondary-foreground font-bold backdrop-blur min-w-[80px] justify-center"
-          >
-            {downloadingZip ? <Loader2 className="w-5 h-5 hidden md:block animate-spin" /> : <Download className="w-5 h-5 hidden md:block" />}
-            <span className="ml-0 md:ml-2 text-xs md:text-sm">
-              {downloadingZip ? "Đang tải..." : `Tải QR (${beList.filter((b) => b.qrBase64).length})`}
-            </span>
-          </Button>
-        )}
+        {/* Download QR Button - Now a separate component */}
+        <DownloadQRButton beList={beList} />
       </div>
 
       <div className="absolute inset-0 overflow-hidden pointer-events-none">

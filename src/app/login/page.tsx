@@ -81,7 +81,7 @@ export default function LoginPage() {
           )}
 
           <CardContent className="space-y-6">
-            <Button
+            {/* <Button
               className="w-full h-12 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50"
               disabled={loading}
             >
@@ -93,7 +93,7 @@ export default function LoginPage() {
               ) : (
                 "Đăng nhập với Google"
               )}
-            </Button>
+            </Button> */}
 
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
@@ -105,12 +105,7 @@ export default function LoginPage() {
               shape="rectangular"
             />
 
-            <p className="text-center text-sm text-gray-300">
-              Chưa có tài khoản?{" "}
-              <a href="/register" className="text-purple-300 hover:text-purple-200 underline font-medium">
-                Đăng ký ngay
-              </a>
-            </p>
+           
           </CardContent>
         </Card>
       </div>

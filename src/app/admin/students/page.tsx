@@ -6,12 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, QrCode, Pencil, Trash2, Loader2 } from "lucide-react"
+import { Plus, QrCode, Pencil, Trash2, Loader2, Folder } from "lucide-react"
 import { QRCodeGenerator } from "@/components/qr-code-generator"
+import { UploadExcelModal } from "@/components/UploadExcelModal"
+import { DownloadQRButton } from "@/components/DownloadQRButton"
 import { toast } from "sonner" // Giả sử dùng sonner cho toast, hoặc thay bằng alert nếu chưa có
 import Image from "next/image"
+import { BeInfo } from "@/types/BeInfo"
+import JSZip from "jszip" // Thêm import JSZip (cài đặt: npm install jszip)
 
 type Student = {
   id: string
@@ -33,31 +37,18 @@ type Student = {
   dateOfBirth: string // Alias for dob in display
 }
 
-type BeInfo = {
-  sbd: number
-  name: string
-  lop: string
-  dob: string
-  created_at?: string
-  user_id: number
-  gender: string
-  age: number
-  parent: string
-  phone: string
-  address: string | null
-  qrBase64?: string | null
-  avatar?: string | null
-}
-
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isZipUploadOpen, setIsZipUploadOpen] = useState(false) // Thêm state cho modal upload zip
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [showQRCode, setShowQRCode] = useState<Student | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false) // Thêm state cho upload
+  const [zipUploading, setZipUploading] = useState(false) // State cho upload zip
+  const [zipProgress, setZipProgress] = useState(0) // Progress cho zip upload
   const [formData, setFormData] = useState({
     name: "",
     gender: "",
@@ -113,15 +104,15 @@ export default function StudentsPage() {
           gender: be.gender,
           age: be.age,
           dob: be.dob,
-          lop: be.lop,
-          parent: be.parent,
-          phone: be.phone,
+          lop: be.lop || '',
+          parent: be.parent || '',
+          phone: be.phone || '',
           address: be.address,
           qrBase64: be.qrBase64,
           avatar: be.avatar,
           createdAt: be.created_at || new Date().toISOString(),
           studentCode: be.sbd.toString().padStart(3, '0'),  // Ví dụ: 001 cho sbd=1
-          class: be.lop,
+          class: be.lop || '',
           dateOfBirth: be.dob,
         }))
         setStudents(mappedStudents)
@@ -149,8 +140,49 @@ export default function StudentsPage() {
     return null; // Hoặc redirect ở useEffect đã handle
   }
 
+  // Callback for upload success - map BeInfo to Student
+  const handleUploadSuccess = (newBeList: BeInfo[]) => {
+    const mappedStudents: Student[] = newBeList.map((be: BeInfo) => ({
+      id: be.sbd.toString(),
+      sbd: be.sbd,
+      user_id: be.user_id,
+      name: be.name,
+      gender: be.gender,
+      age: be.age,
+      dob: be.dob,
+      lop: be.lop || '',
+      parent: be.parent || '',
+      phone: be.phone || '',
+      address: be.address,
+      qrBase64: be.qrBase64,
+      avatar: be.avatar,
+      createdAt: be.created_at || new Date().toISOString(),
+      studentCode: be.sbd.toString().padStart(3, '0'),
+      class: be.lop || '',
+      dateOfBirth: be.dob,
+    }))
+    setStudents(mappedStudents)
+  }
+
+  // Map students to BeInfo for components (ensure address is string)
+  const beListForComponents = students.map((student: Student) => ({
+    sbd: student.sbd,
+    name: student.name,
+    gender: student.gender,
+    age: student.age,
+    dob: student.dob,
+    lop: student.lop,
+    parent: student.parent,
+    phone: student.phone,
+    address: student.address || '',
+    qrBase64: student.qrBase64 || null,
+    avatar: student.avatar || null,
+    user_id: student.user_id,
+  } as BeInfo))
+
   const handleAddStudent = async () => {
-    if (!formData.name || !formData.dateOfBirth || !formData.class) {
+    console.log('handleAddStudent called'); // Debug log
+    if (!formData.name?.trim() || !formData.dateOfBirth || !formData.class?.trim()) {
       toast.error('Vui lòng điền họ tên, ngày sinh và lớp.')
       return
     }
@@ -159,14 +191,14 @@ export default function StudentsPage() {
       const newStudentData = {
         sbd: newSbd,
         user_id: userId,
-        name: formData.name,
-        gender: formData.gender || 'Nam',  // Default nếu trống
+        name: formData.name.trim(),
+        gender: formData.gender?.trim() || 'Nam',  // Default nếu trống
         age: formData.age || 0,
         dob: formData.dateOfBirth,
-        lop: formData.class,
-        parent: formData.parent || 'Cha mẹ',
-        phone: formData.phone || '',
-        address: formData.address || null,
+        lop: formData.class.trim(),
+        parent: formData.parent?.trim() || 'Cha mẹ',
+        phone: formData.phone?.trim() || '',
+        address: formData.address?.trim() || null,
         avatar: formData.avatar || null,
       }
       console.log('Adding student data:', newStudentData) // Debug: Log data trước POST
@@ -178,6 +210,7 @@ export default function StudentsPage() {
         },
         body: JSON.stringify({ bes: [newStudentData] })
       })
+      console.log('Add response status:', response.status); // Debug log response status
       if (!response.ok) {
         const errData = await response.json()
         throw new Error(errData.error || 'Lỗi thêm học sinh')
@@ -198,15 +231,15 @@ export default function StudentsPage() {
               gender: be.gender,
               age: be.age,
               dob: be.dob,
-              lop: be.lop,
-              parent: be.parent,
-              phone: be.phone,
+              lop: be.lop || '',
+              parent: be.parent || '',
+              phone: be.phone || '',
               address: be.address,
               qrBase64: be.qrBase64,
               avatar: be.avatar,
               createdAt: be.created_at || new Date().toISOString(),
               studentCode: be.sbd.toString().padStart(3, '0'),
-              class: be.lop,
+              class: be.lop || '',
               dateOfBirth: be.dob,
             }))
             setStudents(mappedStudents)
@@ -236,7 +269,7 @@ export default function StudentsPage() {
     }
   }
 
-  const handleUploadImage = async (file: File) => {
+  const handleUploadImage = async (file: File | Blob): Promise<string | null> => {
     if (!file) return null
     setUploading(true)
     try {
@@ -252,6 +285,7 @@ export default function StudentsPage() {
       }
       const data = await res.json()
       console.log('Upload success, URL:', data.secure_url) // Debug: Log URL
+      toast.success('Upload ảnh thành công!') // Thêm toast xác nhận upload
       return data.secure_url  // ✅ link ảnh
     } catch (err) {
       console.error('Upload error:', err)
@@ -262,26 +296,154 @@ export default function StudentsPage() {
     }
   }
 
+  // Thêm hàm xử lý upload zip
+  const handleZipUpload = async (zipFile: File) => {
+    if (!zipFile) return
+    setZipUploading(true)
+    setZipProgress(0)
+    try {
+      const zip = new JSZip()
+      const contents = await zip.loadAsync(zipFile)
+      const files = Object.values(contents.files).filter(file => !file.dir && (file.name.toLowerCase().endsWith('.png') || file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')))
+      
+      if (files.length === 0) {
+        toast.error('Không tìm thấy file hình ảnh (.png, .jpg, .jpeg) trong zip.')
+        return
+      }
+
+      let processed = 0
+      const updates: BeInfo[] = []
+
+      for (const zipFileEntry of files) {
+        // Extract tên file từ path (bỏ folder, ví dụ "fileanhbaby/001.jpg" → "001.jpg")
+        const fullPath = zipFileEntry.name
+        const fileName = fullPath.split('/').pop() || fullPath // Lấy phần cuối sau '/'
+        // Extract SBD từ tên file: ví dụ "001.jpg" → "001" → 1
+        const fileNameWithoutExt = fileName.split('.').slice(0, -1).join('.')
+        const parsedSbd = parseInt(fileNameWithoutExt, 10)
+        
+        if (isNaN(parsedSbd)) {
+          console.warn(`Bỏ qua file không hợp lệ: ${fullPath} (tên file: ${fileName}, parsed: ${fileNameWithoutExt})`)
+          continue
+        }
+
+        // Tìm student tương ứng
+        const student = students.find(s => s.sbd === parsedSbd)
+        if (!student) {
+          console.warn(`Không tìm thấy học sinh với SBD: ${parsedSbd}`)
+          continue
+        }
+
+        // Lấy blob của file từ zip
+        const imageBlob = await zipFileEntry.async('blob')
+        
+        // Upload image
+        const avatarUrl = await handleUploadImage(imageBlob)
+        if (!avatarUrl) {
+          console.error(`Lỗi upload cho SBD ${parsedSbd}`)
+          continue
+        }
+
+        // Chuẩn bị update data
+        updates.push({
+          sbd: parsedSbd,
+          user_id: userId!,
+          name: student.name,
+          gender: student.gender,
+          age: student.age,
+          dob: student.dateOfBirth,
+          lop: student.lop,
+          parent: student.parent,
+          phone: student.phone,
+          address: student.address,
+          avatar: avatarUrl,
+          qrBase64: student.qrBase64,
+        } as BeInfo)
+
+        processed++
+        setZipProgress((processed / files.length) * 100)
+      }
+
+      // Batch update qua API nếu có updates
+      if (updates.length > 0) {
+        const response = await fetch('/api/bes', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'user-id': userId!.toString(),
+          },
+          body: JSON.stringify({ bes: updates })
+        })
+        if (!response.ok) {
+          throw new Error('Lỗi cập nhật avatar từ zip')
+        }
+        // Refetch students
+        const res = await fetch('/api/bes', {
+          headers: { 'user-id': userId!.toString() },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const mappedStudents: Student[] = data.map((be: BeInfo) => ({
+            id: be.sbd.toString(),
+            sbd: be.sbd,
+            user_id: be.user_id,
+            name: be.name,
+            gender: be.gender,
+            age: be.age,
+            dob: be.dob,
+            lop: be.lop || '',
+            parent: be.parent || '',
+            phone: be.phone || '',
+            address: be.address,
+            qrBase64: be.qrBase64,
+            avatar: be.avatar,
+            createdAt: be.created_at || new Date().toISOString(),
+            studentCode: be.sbd.toString().padStart(3, '0'),
+            class: be.lop || '',
+            dateOfBirth: be.dob,
+          }))
+          setStudents(mappedStudents)
+        }
+        toast.success(`Cập nhật thành công ${updates.length} ảnh đại diện từ zip!`)
+      } else {
+        toast.warning('Không có ảnh nào được xử lý thành công.')
+      }
+    } catch (err) {
+      console.error('Zip upload error:', err)
+      toast.error('Lỗi xử lý zip: ' + (err as Error).message)
+    } finally {
+      setZipUploading(false)
+      setZipProgress(0)
+      setIsZipUploadOpen(false)
+    }
+  }
+
   const handleEditStudent = async () => {
-    if (!selectedStudent || !formData.name || !formData.dateOfBirth || !formData.class) {
-      toast.error('Vui lòng điền họ tên, ngày sinh và lớp.')
+    console.log('handleEditStudent called'); // Debug log đầu hàm
+    console.log('selectedStudent:', selectedStudent); // Debug selectedStudent
+    console.log('formData:', formData); // Debug formData
+    // Chỉ validate name và dateOfBirth cho edit (class có thể empty nếu không thay đổi)
+    if (!selectedStudent || !formData.name?.trim() || !formData.dateOfBirth) {
+      console.log('Validation failed'); // Debug validation
+      toast.error('Vui lòng điền họ tên và ngày sinh.')
       return
     }
     try {
       const updatedData = {
         user_id: userId,
         sbd: selectedStudent.sbd,
-        name: formData.name,
-        gender: formData.gender || selectedStudent.gender,  // Giữ cũ nếu trống
-        age: formData.age !== undefined ? formData.age : selectedStudent.age,
-        dob: formData.dateOfBirth || selectedStudent.dateOfBirth,
-        lop: formData.class,
-        parent: formData.parent || selectedStudent.parent,
-        phone: formData.phone || selectedStudent.phone,
-        address: formData.address !== undefined ? (formData.address || null) : selectedStudent.address,
+        name: formData.name.trim(),
+        gender: formData.gender?.trim() || selectedStudent.gender,  // Giữ cũ nếu trống
+        age: formData.age !== undefined && formData.age !== null ? formData.age : selectedStudent.age,
+        dob: formData.dateOfBirth,
+        lop: formData.class?.trim() || selectedStudent.lop || selectedStudent.class || '', // Giữ cũ nếu empty
+        parent: formData.parent?.trim() || selectedStudent.parent,
+        phone: formData.phone?.trim() || selectedStudent.phone,
+        address: formData.address?.trim() !== undefined ? (formData.address?.trim() || null) : selectedStudent.address,
         avatar: formData.avatar || selectedStudent.avatar || null,
       }
-      console.log('Updating student data:', updatedData) // Debug: Log data trước POST
+      console.log('Updating student data (avatar):', updatedData.avatar) // Debug: Log avatar cụ thể
+      console.log('Full updatedData:', updatedData); // Debug full data
       const response = await fetch('/api/bes', {
         method: 'POST',  // Upsert via POST batch
         headers: { 
@@ -290,18 +452,24 @@ export default function StudentsPage() {
         },
         body: JSON.stringify({ bes: [updatedData] })
       })
+      console.log('Edit response status:', response.status); // Debug log response status
+      console.log('Edit response ok:', response.ok); // Debug response.ok
       if (!response.ok) {
         const errData = await response.json()
+        console.log('Edit error data:', errData); // Debug error từ server
         throw new Error(errData.error || 'Lỗi cập nhật học sinh')
       }
       // Refetch thay vì reload
       const fetchStudents = async () => {
         try {
+          console.log('Starting refetch...'); // Debug refetch
           const res = await fetch('/api/bes', {
             headers: { 'user-id': userId.toString() },
           })
+          console.log('Refetch status:', res.status); // Debug refetch status
           if (res.ok) {
             const data = await res.json()
+            console.log('Refetch data:', data); // Debug refetch data
             const mappedStudents: Student[] = data.map((be: BeInfo) => ({
               id: be.sbd.toString(),
               sbd: be.sbd,
@@ -310,24 +478,26 @@ export default function StudentsPage() {
               gender: be.gender,
               age: be.age,
               dob: be.dob,
-             lop: be.lop,
-              parent: be.parent,
-              phone: be.phone,
+             lop: be.lop || '',
+              parent: be.parent || '',
+              phone: be.phone || '',
               address: be.address,
               qrBase64: be.qrBase64,
               avatar: be.avatar,
               createdAt: be.created_at || new Date().toISOString(),
               studentCode: be.sbd.toString().padStart(3, '0'),
-              class: be.lop,
+              class: be.lop || '',
               dateOfBirth: be.dob,
             }))
             setStudents(mappedStudents)
+            console.log('Students updated after refetch'); // Debug setStudents
           }
         } catch (err) {
           console.error('Refetch error:', err)
         }
       }
       await fetchStudents()
+      console.log('Closing edit dialog'); // Debug close dialog
       setIsEditDialogOpen(false)
       setSelectedStudent(null)
       setFormData({ 
@@ -342,7 +512,7 @@ export default function StudentsPage() {
         avatar: "", 
         studentCode: "" 
       })
-      toast.success('Cập nhật học sinh thành công!')
+      toast.success('Cập nhật học sinh thành công!') // Thêm toast xác nhận, bao gồm avatar nếu có
     } catch (err) {
       console.error('Edit error:', err)
       toast.error('Lỗi cập nhật: ' + (err as Error).message)
@@ -375,15 +545,15 @@ export default function StudentsPage() {
               gender: be.gender,
               age: be.age,
               dob: be.dob,
-              lop: be.lop,
-              parent: be.parent,
-              phone: be.phone,
+              lop: be.lop || '',
+              parent: be.parent || '',
+              phone: be.phone || '',
               address: be.address,
               qrBase64: be.qrBase64,
               avatar: be.avatar,
               createdAt: be.created_at || new Date().toISOString(),
               studentCode: be.sbd.toString().padStart(3, '0'),
-              class: be.lop,
+              class: be.lop || '',
               dateOfBirth: be.dob,
             }))
             setStudents(mappedStudents)
@@ -400,15 +570,16 @@ export default function StudentsPage() {
   }
 
   const openEditDialog = (student: Student) => {
+    console.log('openEditDialog called with student:', student); // Debug open dialog
     setSelectedStudent(student)
     setFormData({
-      name: student.name,
-      gender: student.gender,
-      age: student.age,
-      dateOfBirth: student.dateOfBirth,
-      class: student.class,
-      parent: student.parent,
-      phone: student.phone,
+      name: student.name || "",
+      gender: student.gender || "",
+      age: student.age || 0,
+      dateOfBirth: student.dateOfBirth || "",
+      class: student.class || student.lop || "", // Ưu tiên class, fallback lop
+      parent: student.parent || "",
+      phone: student.phone || "",
       address: student.address || "",
       avatar: student.avatar || "",
       studentCode: student.studentCode,
@@ -441,137 +612,202 @@ export default function StudentsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Quản lý học sinh</h1>
           <p className="text-muted-foreground">Thêm, chỉnh sửa và tạo mã QR cho học sinh</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Thêm học sinh
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Thêm học sinh mới</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Họ và tên</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Nguyễn Văn A"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="studentCode">Mã học sinh</Label>
-                <Input
-                  id="studentCode"
-                  value={formData.studentCode}
-                  onChange={(e) => setFormData({ ...formData, studentCode: e.target.value })}
-                  placeholder="HS001"
-                  disabled // Tạm disable vì auto sbd
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gender">Giới tính</Label>
-                <Input
-                  id="gender"
-                  value={formData.gender}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  placeholder="Nam / Nữ"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="age">Tuổi</Label>
-                <Input
-                  id="age"
-                  type="number"
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
-                  placeholder="18"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="class">Lớp</Label>
-                <Input
-                  id="class"
-                  value={formData.class}
-                  onChange={(e) => setFormData({ ...formData, class: e.target.value })}
-                  placeholder="10A1"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dateOfBirth">Ngày sinh</Label>
-                <Input
-                  id="dateOfBirth"
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="parent">Tên phụ huynh</Label>
-                <Input
-                  id="parent"
-                  value={formData.parent}
-                  onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
-                  placeholder="Cha mẹ"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Số điện thoại</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="0123456789"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Địa chỉ</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address || ''}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Địa chỉ nhà..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="avatar">Ảnh đại diện</Label>
-                <Input
-                  id="avatar"
-                  type="file"
-                  accept="image/*"
-                  disabled={uploading}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      const url = await handleUploadImage(file)
-                      if (url) {
-                        setFormData({ ...formData, avatar: url })
+        <div className="flex items-center gap-2">
+          {/* Thêm 2 nút mới */}
+          <UploadExcelModal onUploadSuccess={handleUploadSuccess} beList={beListForComponents} />
+          <DownloadQRButton beList={beListForComponents} />
+          {/* Nút upload zip mới */}
+          <Dialog open={isZipUploadOpen} onOpenChange={setIsZipUploadOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Folder className="mr-2 h-4 w-4" />
+                Upload Zip Ảnh
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Upload ảnh từ file ZIP</DialogTitle>
+                <DialogDescription>
+                  Chọn file ZIP chứa các ảnh với tên file là SBD.png hoặc SBD.jpg (ví dụ: 001.png cho SBD=1). Hỗ trợ ảnh trong thư mục con.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="zip-file">Chọn file ZIP</Label>
+                  <Input
+                    id="zip-file"
+                    type="file"
+                    accept=".zip"
+                    disabled={zipUploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        handleZipUpload(file)
                       }
-                    }
-                  }}
-                />
-                {uploading && <p className="text-sm text-muted-foreground">Đang upload...</p>}
-                {formData.avatar && !uploading && (
-                  <Image
-                    src={formData.avatar}
-                    alt="Preview"
-                    width={96}
-                    height={96}
-                    className="mt-2 w-24 h-24 object-cover rounded-full border"
+                    }}
                   />
+                </div>
+                {zipUploading && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span>Đang xử lý...</span>
+                      <span>{Math.round(zipProgress)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        style={{ width: `${zipProgress}%` }}
+                      />
+                    </div>
+                  </div>
                 )}
+                <Button
+                  onClick={() => setIsZipUploadOpen(false)}
+                  className="w-full"
+                  disabled={zipUploading}
+                  variant="outline"
+                >
+                  Đóng
+                </Button>
               </div>
-              <Button onClick={handleAddStudent} className="w-full" disabled={uploading}>
-                {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            </DialogContent>
+          </Dialog>
+          {/* Nút thêm học sinh */}
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
                 Thêm học sinh
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Thêm học sinh mới</DialogTitle>
+                <DialogDescription>
+                  Điền thông tin học sinh mới.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Họ và tên</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Nguyễn Văn A"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="studentCode">Mã học sinh</Label>
+                  <Input
+                    id="studentCode"
+                    value={formData.studentCode}
+                    onChange={(e) => setFormData({ ...formData, studentCode: e.target.value })}
+                    placeholder="HS001"
+                    disabled // Tạm disable vì auto sbd
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Giới tính</Label>
+                  <Input
+                    id="gender"
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    placeholder="Nam / Nữ"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="age">Tuổi</Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    value={formData.age}
+                    onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
+                    placeholder="18"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="class">Lớp</Label>
+                  <Input
+                    id="class"
+                    value={formData.class}
+                    onChange={(e) => setFormData({ ...formData, class: e.target.value })}
+                    placeholder="10A1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dateOfBirth">Ngày sinh</Label>
+                  <Input
+                    id="dateOfBirth"
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="parent">Tên phụ huynh</Label>
+                  <Input
+                    id="parent"
+                    value={formData.parent}
+                    onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
+                    placeholder="Cha mẹ"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Số điện thoại</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="0123456789"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">Địa chỉ</Label>
+                  <Textarea
+                    id="address"
+                    value={formData.address || ''}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="Địa chỉ nhà..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="avatar">Ảnh đại diện</Label>
+                  <Input
+                    id="avatar"
+                    type="file"
+                    accept="image/*"
+                    disabled={uploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const url = await handleUploadImage(file)
+                        if (url) {
+                          setFormData({ ...formData, avatar: url })
+                        }
+                      }
+                    }}
+                  />
+                  {uploading && <p className="text-sm text-muted-foreground">Đang upload...</p>}
+                  {/* {formData.avatar && !uploading && (
+                    <Image
+                      src={formData.avatar}
+                      alt="Preview"
+                      width={96}
+                      height={96}
+                      className="mt-2 w-24 h-24 object-cover rounded-full border"
+                    />
+                  )} */}
+                </div>
+                <Button onClick={handleAddStudent} className="w-full" disabled={uploading}>
+                  {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Thêm học sinh
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -641,6 +877,9 @@ export default function StudentsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Chỉnh sửa thông tin học sinh</DialogTitle>
+            <DialogDescription>
+              Cập nhật thông tin học sinh. Các trường không bắt buộc có thể để trống để giữ nguyên.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -672,7 +911,7 @@ export default function StudentsPage() {
               <Input
                 id="edit-age"
                 type="number"
-                value={formData.age}
+                value={formData.age === null ? '' : formData.age}
                 onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
               />
             </div>
@@ -736,7 +975,7 @@ export default function StudentsPage() {
                 }}
               />
               {uploading && <p className="text-sm text-muted-foreground">Đang upload...</p>}
-              {formData.avatar && !uploading && (
+              {/* {formData.avatar && !uploading && (
                 <Image
                   src={formData.avatar}
                   alt="Preview"
@@ -744,7 +983,7 @@ export default function StudentsPage() {
                   height={96}
                   className="mt-2 w-24 h-24 object-cover rounded-full border"
                 />
-              )}
+              )} */}
             </div>
             <Button onClick={handleEditStudent} className="w-full" disabled={uploading}>
               {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

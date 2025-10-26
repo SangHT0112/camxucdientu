@@ -1,5 +1,5 @@
 export interface BeInfo {
-  id: number
+  id?: number
   sbd: number
   user_id: number
   name: string
@@ -12,4 +12,5 @@ export interface BeInfo {
   address: string
   qrBase64?: string
   avatar?: string
+  created_at?: string
 }

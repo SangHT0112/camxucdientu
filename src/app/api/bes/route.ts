@@ -135,33 +135,34 @@ export async function POST(request: NextRequest) {
 
       await connection.execute(
         `INSERT INTO bes (sbd, user_id, name, gender, age, dob, lop, parent, phone, address, qr_base64, avatar)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           user_id = VALUES(user_id),
-           name = VALUES(name),
-           gender = VALUES(gender),
-           age = VALUES(age),
-           dob = VALUES(dob),
-           lop = VALUES(lop),
-           parent = VALUES(parent),
-           phone = VALUES(phone),
-           address = VALUES(address),
-           avatar = VALUES(avatar)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          gender = VALUES(gender),
+          age = VALUES(age),
+          dob = VALUES(dob),
+          lop = VALUES(lop),
+          parent = VALUES(parent),
+          phone = VALUES(phone),
+          address = VALUES(address),
+          qr_base64 = VALUES(qr_base64),
+          avatar = VALUES(avatar)`,
         [
-          be.sbd,
-          be.user_id,
-          be.name,
-          be.gender,
-          be.age,
-          be.dob,
-          be.lop,
-          be.parent,
-          be.phone,
-          be.address,
-          qrBase64,
-          be.avatar ?? null,
+          be.sbd ?? null,
+          be.user_id ?? null,
+          be.name ?? null,
+          be.gender ?? null,
+          be.age ?? null,
+          be.dob ?? null,
+          be.lop ?? null,
+          be.parent ?? null,
+          be.phone ?? null,
+          be.address ?? null,
+          qrBase64 ?? null,
+          be.avatar ?? null
         ]
       )
+
     }
 
     await connection.commit()
