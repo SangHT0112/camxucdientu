@@ -9,7 +9,7 @@
     name: string
     gender: string
     age: number
-    dob: Date  // mysql2 trả Date object
+    dob: string  // mysql2 trả Date object
     lop: string
     parent: string
     phone: string
@@ -47,7 +47,7 @@
     const { qr_base64, ...rest } = row
     return {
       ...rest,
-      dob: row.dob ? row.dob.toISOString().split('T')[0] : '',
+      dob: row.dob ? row.dob : '',
       qrBase64: qr_base64 || null,
       avatar: row.avatar || null,
       created_at: row.created_at ? row.created_at.toISOString() : '',

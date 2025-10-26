@@ -35,6 +35,38 @@ export function UploadExcelModal({ onUploadSuccess, beList }: UploadExcelModalPr
     }
   }
 
+    // Thêm hàm xử lý ở trên cùng trong component:
+    function parseExcelDate(value: unknown): string {
+    if (typeof value === "number") {
+      // Excel serial number → convert to date
+      const utcDays = Math.floor(value - 25569)
+      const utcValue = utcDays * 86400
+      const date = new Date(utcValue * 1000)
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, "0")
+      const d = String(date.getDate()).padStart(2, "0")
+      return `${y}-${m}-${d}`
+    }
+
+    if (typeof value === "string") {
+      // Trường hợp "9/18/2022" hoặc "2022-09-18"
+      const parts = value.includes("/") ? value.split("/") : value.split("-")
+      if (parts.length === 3) {
+        let year, month, day
+        if (value.includes("/")) {
+          // mm/dd/yyyy
+          ;[month, day, year] = parts
+        } else {
+          // yyyy-mm-dd
+          ;[year, month, day] = parts
+        }
+        return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
+      }
+    }
+    return ""
+  }
+
+
   const onDrop = async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
     if (file && file.name.endsWith(".xlsx")) {
@@ -71,7 +103,7 @@ export function UploadExcelModal({ onUploadSuccess, beList }: UploadExcelModalPr
               name: row[1] as string,
               gender: row[2] as string,
               age: row[3] as number,
-              dob: row[4] as string,
+              dob: parseExcelDate(row[4]),
               lop: row[5] as string,
               parent: row[6] as string,
               phone: row[7] as string,
