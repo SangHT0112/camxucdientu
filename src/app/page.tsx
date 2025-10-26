@@ -5,16 +5,16 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import {  QrCode, Sparkles, Star, X, ImageIcon, Settings } from "lucide-react"
+import { QrCode, Sparkles, Star, X, ImageIcon, Settings, Music, MicOff  } from "lucide-react"
 import { useRouter } from "next/navigation"
 import * as XLSX from "xlsx"
 import { useDropzone } from "react-dropzone"
 import QRCode from "qrcode"
 import JSZip from "jszip"
 import { Scanner } from "@yudiel/react-qr-scanner"
-import { UploadExcelModal } from "@/components/UploadExcelModal" // Import new component
+import { UploadExcelModal } from "@/components/UploadExcelModal"
 import { DownloadQRButton } from "@/components/DownloadQRButton"
-import { BeInfo } from "@/types/BeInfo"
+import type { BeInfo } from "@/types/BeInfo"
 
 // 🔥 Fix: Thêm interface cho QR Code result
 interface QrCodeResult {
@@ -26,6 +26,9 @@ const constraints: MediaTrackConstraints = {
   facingMode: { ideal: "environment" },
 }
 
+// Nhạc nền
+const backgroundMusic = "https://res.cloudinary.com/dvvsfnmys/video/upload/v1761469025/happy-children-music_bsauuu.mp3";
+
 export default function PreschoolGreeting() {
   const [showScanner, setShowScanner] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -34,8 +37,10 @@ export default function PreschoolGreeting() {
   const [downloadingZip, setDownloadingZip] = useState(false)
   const [cameraError, setCameraError] = useState<string>("")
   const [showFileFallback, setShowFileFallback] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
     const token = localStorage.getItem("token")
@@ -49,7 +54,7 @@ export default function PreschoolGreeting() {
   useEffect(() => {
     const fetchBeList = async () => {
       try {
-        const response = await fetch('/api/bes')
+        const response = await fetch("/api/bes")
         if (response.ok) {
           const data = await response.json()
           if (data.length > 0) {
@@ -72,6 +77,18 @@ export default function PreschoolGreeting() {
     }
     fetchBeList()
   }, [])
+
+  // Xử lý nhạc nền
+  const toggleMusic = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause()
+      } else {
+        audioRef.current.play().catch(e => console.log("Lỗi phát nhạc:", e))
+      }
+      setIsPlaying(!isPlaying)
+    }
+  }
 
   // 🔥 Fix: Sử dụng type đúng cho detectedCodes
   const handleScan = (detectedCodes: QrCodeResult[]) => {
@@ -98,7 +115,7 @@ export default function PreschoolGreeting() {
   // 🔥 Fix: Sử dụng type cụ thể cho error
   const handleError = (error: unknown) => {
     console.error("❌ Scan error:", error)
-    
+
     if (error instanceof Error) {
       if (error.name === "NotAllowedError" || error.message.includes("Permission")) {
         setCameraError("Bị từ chối truy cập camera! Vui lòng cho phép quyền camera.")
@@ -115,7 +132,6 @@ export default function PreschoolGreeting() {
     }
   }
 
-  // 🔥 Fix: Xóa biến imageData không sử dụng
   const handleFileScan = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -130,8 +146,6 @@ export default function PreschoolGreeting() {
           canvas.width = img.width
           canvas.height = img.height
           ctx?.drawImage(img, 0, 0)
-          // 🔥 Fix: Xóa dòng này vì không sử dụng imageData
-          // const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height)
           alert("Scan file: " + e.target?.result)
         }
         img.src = e.target?.result as string
@@ -194,7 +208,7 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
   }
 
   const handleAdminClick = () => {
-    router.push('/admin')
+    router.push("/admin")
   }
 
   const generateQRForBe = async (be: BeInfo): Promise<string> => {
@@ -230,20 +244,20 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | boolean | Date)[][]
           const userId = Number(localStorage.getItem("user_id")) || 1
           const parsedBeListTemp = jsonData
-          .slice(1)
-          .map((row: (string | number | boolean | Date)[]) => ({
-            sbd: row[0] as number,
-            user_id: userId,
-            name: row[1] as string,
-            gender: row[2] as string,
-            age: row[3] as number,
-            dob: row[4] as string,
-            lop: row[5] as string,
-            parent: row[6] as string,
-            phone: row[7] as string,
-            address: row[8] as string,
-          }))
-          .filter((be) => be.sbd)
+            .slice(1)
+            .map((row: (string | number | boolean | Date)[]) => ({
+              sbd: row[0] as number,
+              user_id: userId,
+              name: row[1] as string,
+              gender: row[2] as string,
+              age: row[3] as number,
+              dob: row[4] as string,
+              lop: row[5] as string,
+              parent: row[6] as string,
+              phone: row[7] as string,
+              address: row[8] as string,
+            }))
+            .filter((be) => be.sbd)
 
           setGeneratingQR(true)
 
@@ -252,12 +266,12 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
 
           // Batch save to MySQL API
           try {
-            const response = await fetch('/api/bes', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            const response = await fetch("/api/bes", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                bes: parsedBeListTemp.map((be, index) => ({ ...be, qrBase64: qrBase64List[index] }))
-              })
+                bes: parsedBeListTemp.map((be, index) => ({ ...be, qrBase64: qrBase64List[index] })),
+              }),
             })
             if (!response.ok) {
               throw new Error(`API error: ${response.status}`)
@@ -290,64 +304,67 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
     }
   }
 
- const handleDownloadAllQR = async () => {
-  setDownloadingZip(true);
-  try {
-    if (beList.length === 0) {
-      throw new Error('Chưa có danh sách bé! Upload trước nhé. 📚');
-    }
-    const qrCount = beList.filter((b) => b.qrBase64).length;
-    if (qrCount === 0) {
-      console.log('Không có qrBase64 trong beList, gọi API /api/qr');
-      const response = await fetch('/api/qr', {
-        headers: { 'user-id': localStorage.getItem('user_id') || '1' },
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `API error: ${response.status}`);
+  const handleDownloadAllQR = async () => {
+    setDownloadingZip(true)
+    try {
+      if (beList.length === 0) {
+        throw new Error("Chưa có danh sách bé! Upload trước nhé. 📚")
       }
-      const zipBlob = await response.blob();
+      const qrCount = beList.filter((b) => b.qrBase64).length
+      if (qrCount === 0) {
+        console.log("Không có qrBase64 trong beList, gọi API /api/qr")
+        const response = await fetch("/api/qr", {
+          headers: { "user-id": localStorage.getItem("user_id") || "1" },
+        })
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || `API error: ${response.status}`)
+        }
+        const zipBlob = await response.blob()
+        if (zipBlob.size === 0) {
+          throw new Error("File ZIP rỗng từ API. Kiểm tra dữ liệu MySQL.")
+        }
+        const link = document.createElement("a")
+        link.href = URL.createObjectURL(zipBlob)
+        link.download = "QR_codes_tat_ca_be.zip"
+        link.click()
+        URL.revokeObjectURL(link.href)
+        alert("Đã tải ZIP từ MySQL! 💾 In ra dán bảng tên bé nhé!")
+        return
+      }
+
+      console.log(
+        "beList with QR:",
+        beList.filter((b) => b.qrBase64),
+      )
+
+      const zip = new JSZip()
+      beList.forEach((be) => {
+        if (be.qrBase64) {
+          const filename = `QR_be_${be.sbd}_${be.name.replace(/\s+/g, "_")}.png`
+          zip.file(filename, be.qrBase64.split(",")[1], { base64: true })
+        }
+      })
+
+      const zipBlob = await zip.generateAsync({ type: "blob" })
       if (zipBlob.size === 0) {
-        throw new Error('File ZIP rỗng từ API. Kiểm tra dữ liệu MySQL.');
+        throw new Error("File ZIP rỗng. Kiểm tra dữ liệu qrBase64 trong beList.")
       }
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(zipBlob);
-      link.download = 'QR_codes_tat_ca_be.zip';
-      link.click();
-      URL.revokeObjectURL(link.href);
-      alert('Đã tải ZIP từ MySQL! 💾 In ra dán bảng tên bé nhé!');
-      return;
+
+      const link = document.createElement("a")
+      link.href = URL.createObjectURL(zipBlob)
+      link.download = "QR_codes_tat_ca_be.zip"
+      link.click()
+      URL.revokeObjectURL(link.href)
+      alert(`Đã tải ZIP chứa ${qrCount} mã QR! 💾 In ra dán bảng tên bé nhé!`)
+    } catch (err) {
+      console.error("Lỗi tải ZIP:", err)
+    } finally {
+      setDownloadingZip(false)
     }
-
-    console.log('beList with QR:', beList.filter((b) => b.qrBase64));
-
-    const zip = new JSZip();
-    beList.forEach((be) => {
-      if (be.qrBase64) {
-        const filename = `QR_be_${be.sbd}_${be.name.replace(/\s+/g, '_')}.png`;
-        zip.file(filename, be.qrBase64.split(',')[1], { base64: true });
-      }
-    });
-
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    if (zipBlob.size === 0) {
-      throw new Error('File ZIP rỗng. Kiểm tra dữ liệu qrBase64 trong beList.');
-    }
-
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(zipBlob);
-    link.download = 'QR_codes_tat_ca_be.zip';
-    link.click();
-    URL.revokeObjectURL(link.href);
-    alert(`Đã tải ZIP chứa ${qrCount} mã QR! 💾 In ra dán bảng tên bé nhé!`);
-  } catch (err) {
-    console.error('Lỗi tải ZIP:', err);
-  } finally {
-    setDownloadingZip(false);
   }
-};
 
-// Callback for upload success
+  // Callback for upload success
   const handleUploadSuccess = (newBeList: BeInfo[]) => {
     setBeList(newBeList)
   }
@@ -360,21 +377,40 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
   })
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-accent/30 via-background to-secondary/20">
+    <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-pink-300 via-purple-300 to-blue-300 relative overflow-hidden">
+      {/* Nhạc nền */}
+      <audio 
+        ref={audioRef} 
+        loop 
+        src={backgroundMusic}
+        onEnded={() => setIsPlaying(false)}
+      />
+      
+      {/* Nút điều khiển nhạc */}
       <div className="fixed top-4 left-4 z-50 flex flex-col gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleMusic}
+          className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border-2 border-yellow-500 bg-white/90 hover:bg-white text-yellow-600 font-bold backdrop-blur min-w-[80px] justify-center"
+        >
+          {isPlaying ? <Music className="w-5 h-5" /> : <Music className="w-5 h-5" />}
+          <span className="ml-2 text-xs md:text-sm">{isPlaying ? "Tắt nhạc" : "Bật nhạc"}</span>
+        </Button>
+
         {/* Admin Management Button */}
         <Button
           variant="outline"
           size="sm"
           onClick={handleAdminClick}
-          className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border-2 border-primary/50 bg-secondary/90 hover:bg-secondary text-secondary-foreground font-bold backdrop-blur min-w-[80px] justify-center"
+          className="px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 border-2 border-purple-500 bg-white/90 hover:bg-white text-purple-600 font-bold backdrop-blur min-w-[80px] justify-center"
         >
           <Settings className="w-5 h-5 hidden md:block" />
           <span className="ml-0 md:ml-2 text-xs md:text-sm">Admin</span>
         </Button>
       </div>
 
-     <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
         {/* Upload Excel Button - Now a separate component */}
         <UploadExcelModal onUploadSuccess={handleUploadSuccess} beList={beList} />
 
@@ -382,44 +418,96 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
         <DownloadQRButton beList={beList} />
       </div>
 
+      {/* Background animations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 left-10 w-20 h-20 bg-primary/20 rounded-full blur-xl animate-pulse" />
-        <div className="absolute top-40 right-20 w-32 h-32 bg-secondary/20 rounded-full blur-2xl animate-pulse delay-300" />
-        <div className="absolute bottom-20 left-1/4 w-24 h-24 bg-accent/20 rounded-full blur-xl animate-pulse delay-700" />
+        <div className="absolute top-10 left-10 w-20 h-20 bg-yellow-300/40 rounded-full blur-2xl animate-pulse" />
+        <div className="absolute top-40 right-20 w-32 h-32 bg-pink-400/30 rounded-full blur-3xl animate-pulse delay-300" />
+        <div className="absolute bottom-20 left-1/4 w-24 h-24 bg-blue-300/40 rounded-full blur-2xl animate-pulse delay-700" />
+        <div className="absolute bottom-40 right-1/4 w-16 h-16 bg-green-300/30 rounded-full blur-2xl animate-pulse delay-1000" />
+        
+        {/* Floating icons */}
+        <div className="absolute top-1/4 left-1/6 animate-bounce delay-75">
+          <span className="text-4xl">👧</span>
+        </div>
+        <div className="absolute top-1/3 right-1/5 animate-bounce delay-150">
+          <span className="text-4xl">👦</span>
+        </div>
+        <div className="absolute bottom-1/4 left-1/5 animate-bounce delay-300">
+          <span className="text-3xl">🎈</span>
+        </div>
+        <div className="absolute bottom-1/3 right-1/6 animate-bounce delay-500">
+          <span className="text-3xl">🎨</span>
+        </div>
+        <div className="absolute top-1/6 right-1/4 animate-bounce delay-700">
+          <span className="text-3xl">🧸</span>
+        </div>
+        <div className="absolute bottom-1/6 left-1/3 animate-bounce delay-900">
+          <span className="text-3xl">🚂</span>
+        </div>
+
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute bottom-0 left-10 text-4xl animate-bounce-slow">🎈</div>
+          <div className="absolute bottom-0 right-16 text-5xl animate-float">💫</div>
+          <div className="absolute top-10 left-1/3 text-4xl animate-float-slow">🌟</div>
+        </div>
+
       </div>
 
-      <Card className="relative max-w-2xl w-full p-8 md:p-12 shadow-2xl border-4 border-primary/20 bg-card/95 backdrop-blur">
+      <Card className="relative max-w-2xl w-full p-8 md:p-12 shadow-2xl border-4 border-yellow-300 bg-white/95 backdrop-blur z-10">
         <div className="flex flex-col items-center gap-8 text-center">
           {/* Decorative stars */}
           <div className="flex gap-4 animate-bounce">
-            <Star className="w-8 h-8 text-primary fill-primary" />
-            <Sparkles className="w-10 h-10 text-secondary fill-secondary" />
-            <Star className="w-8 h-8 text-accent fill-accent" />
+            <Star className="w-8 h-8 text-pink-500 fill-pink-500" />
+            <Sparkles className="w-10 h-10 text-purple-500 fill-purple-500" />
+            <Star className="w-8 h-8 text-blue-500 fill-blue-500" />
           </div>
 
-          {/* Greeting message */}
+          {/* Greeting message with waving hand */}
           <div className="space-y-4">
-            <h1 className="text-3xl md:text-7xl font-bold text-primary leading-tight text-balance">
-              Xin chào bé ngoan! 👋
-            </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed">Hôm nay bé học gì vui nhỉ? ✨</p>
+            <div className="flex">
+              <h1 className="text-3xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600 leading-tight text-balance">
+                Xin chào bé yêu!
+              </h1>
+              <span className="text-5xl md:text-7xl animate-wave">👋</span>
+            </div>
+            <p className="text-xl md:text-2xl text-gray-700 leading-relaxed">Chúc bé yêu ngày mới tốt lành ✨</p>
           </div>
+
+
+        <div className="flex justify-center gap-8 items-center mt-8">
+          <img
+            src="https://tse4.mm.bing.net/th/id/OIP.jHA1arXcapzK2cVSsCsvXQHaLt?rs=1&pid=ImgDetMain&o=7&rm=3"
+            alt="Bé gái"
+            className="w-32 h-32 rounded-full shadow-lg animate-sway"
+          />
+          <img
+            src="https://tse1.mm.bing.net/th/id/OIP.OXVidK85puJ0LHrFuskzRwHaM_?rs=1&pid=ImgDetMain&o=7&rm=3"
+            alt="Bé trai"
+            className="w-32 h-32 rounded-full shadow-lg animate-sway delay-200"
+          />
+        </div>
+
 
           {/* QR Scanner button */}
           <Button
             size="lg"
             onClick={handleScanClick}
-            className="text-2xl md:text-3xl px-8 md:px-12 py-6 md:py-8 h-auto rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+            className="text-2xl md:text-3xl px-8 md:px-12 py-6 md:py-8 h-auto rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-bold animate-pulse"
           >
             <QrCode className="w-10 h-10 mr-4" />
-            Quét mã QR 
+            Quét mã QR
           </Button>
 
           {cameraError && (
-            <div className="bg-destructive/10 border border-destructive text-destructive p-4 rounded-lg max-w-md text-center">
+            <div className="bg-red-100 border-4 border-red-500 text-red-700 p-4 rounded-lg max-w-md text-center">
               <p className="font-semibold">Lỗi Camera:</p>
               <p>{cameraError}</p>
-              <Button onClick={handleFixPermission} variant="outline" size="sm" className="mt-2 bg-transparent">
+              <Button
+                onClick={handleFixPermission}
+                variant="outline"
+                size="sm"
+                className="mt-2 bg-white border-2 border-red-500 text-red-600 hover:bg-red-50"
+              >
                 📋 Xem hướng dẫn sửa lỗi
               </Button>
             </div>
@@ -439,18 +527,18 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
               <div className="w-full h-64 bg-gray-900 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4">
                 <Scanner onScan={handleScan} onError={handleError} constraints={constraints} />
               </div>
-              <p className="text-sm text-muted-foreground mt-2 text-center">Đưa mã QR vào khung để quét</p>
+              <p className="text-sm text-gray-600 mt-2 text-center">Đưa mã QR vào khung để quét</p>
 
               {/* Fallback file upload */}
               {showFileFallback && (
-                <div className="mt-4 p-4 bg-accent/20 rounded-lg text-center">
-                  <p className="text-sm text-muted-foreground mb-2">Camera không sẵn sàng? Thử upload ảnh QR:</p>
+                <div className="mt-4 p-4 bg-blue-100 rounded-lg text-center border-2 border-blue-300">
+                  <p className="text-sm text-gray-700 mb-2">Camera không sẵn sàng? Thử upload ảnh QR:</p>
                   <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileScan} className="hidden" />
                   <Button
                     onClick={() => fileInputRef.current?.click()}
                     variant="outline"
                     size="sm"
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 border-2 border-blue-500 text-blue-600 hover:bg-blue-50"
                   >
                     <ImageIcon className="w-4 h-4" />
                     Chọn ảnh QR
@@ -461,6 +549,24 @@ Sau khi sửa, nhấn nút "Quét mã QR" lại nhé! 📸
           )}
         </div>
       </Card>
+
+      {/* Thêm CSS animation cho wave effect */}
+      <style jsx>{`
+        @keyframes wave {
+          0% { transform: rotate(0deg); }
+          10% { transform: rotate(14deg); }
+          20% { transform: rotate(-8deg); }
+          30% { transform: rotate(14deg); }
+          40% { transform: rotate(-4deg); }
+          50% { transform: rotate(10deg); }
+          60% { transform: rotate(0deg); }
+          100% { transform: rotate(0deg); }
+        }
+        .animate-wave {
+          animation: wave 2.5s infinite;
+          transform-origin: 70% 70%;
+        }
+      `}</style>
     </main>
   )
 }

@@ -120,3 +120,31 @@
     @apply bg-background text-foreground;
   }
 }
+
+
+@keyframes bounce-fast {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-bounce-fast {
+  animation: bounce-fast 0.6s infinite;
+}
+
+
+@keyframes sway {
+  0%, 100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+}
+
+.animate-sway {
+  animation: sway 1.5s ease-in-out infinite;
+}

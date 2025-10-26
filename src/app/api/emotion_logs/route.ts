@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       const { child_id, child_name, class_name, emotion, date } = emo;
 
       // Validate input
-      if (!child_id || !child_name || !class_name || !emotion || !date) {
+      if (!child_id || !child_name || !emotion || !date) {
         await connection.rollback();
         return NextResponse.json({ error: "Thiếu thông tin bắt buộc" }, { status: 400 });
       }
