@@ -104,8 +104,11 @@ export default function PreschoolGreeting() {
         if (be) {
           Swal.fire({
             title: `🎉 Xin chào ${be.name}!`,
-            html: `<p style="font-size: 20px;">Lớp: <b>${be.lop}</b></p>
-                  <p style="font-size: 18px;">Chúc bé một ngày thật vui nhé! 🌈</p>`,
+            html: `
+              <p style="font-size: 22px; color: green; font-weight: bold;">✅ Quét mã thành công!</p>
+              <p style="font-size: 20px;">Lớp: <b>${be.lop}</b></p>
+              <p style="font-size: 18px;">Chúc bé một ngày thật vui nhé! 🌈</p>
+            `,
             imageUrl: be.avatar || "https://tse4.mm.bing.net/th/id/OIP.jHA1arXcapzK2cVSsCsvXQHaLt?rs=1&pid=ImgDetMain",
             imageWidth: 150,
             imageHeight: 150,
