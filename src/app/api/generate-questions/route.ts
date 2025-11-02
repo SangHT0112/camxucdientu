@@ -153,13 +153,13 @@ export async function POST(request: NextRequest) {
 
     // Insert exercise first (fix dynamic SQL: tách cases)
     let insertQuery: string;
-    let insertValues: any[];
+    let insertValues: readonly (string | number)[];
     if (exercise_type === 'multiple_choice') {
       insertQuery = "INSERT INTO exercises (name, class_id, book_id, lesson_name, type, question_type_id, num_questions, num_answers, difficulty, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-      insertValues = [exercise_name, class_id, book_id, lesson_name, exercise_type, questionTypeId, num_questions, num_answers!, difficulty, user_id];
+      insertValues = [exercise_name, class_id, book_id, lesson_name, exercise_type, questionTypeId, num_questions, num_answers!, difficulty, user_id] as const;
     } else {
       insertQuery = "INSERT INTO exercises (name, class_id, book_id, lesson_name, type, question_type_id, num_questions, difficulty, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-      insertValues = [exercise_name, class_id, book_id, lesson_name, exercise_type, questionTypeId, num_questions, difficulty, user_id];
+      insertValues = [exercise_name, class_id, book_id, lesson_name, exercise_type, questionTypeId, num_questions, difficulty, user_id] as const;
     }
 
     const [exerciseResult]: [OkPacket, FieldPacket[]] = await connection.execute(insertQuery, insertValues);

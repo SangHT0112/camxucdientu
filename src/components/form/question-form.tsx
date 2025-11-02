@@ -10,6 +10,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import type { QuestionFormData, InsertedQuestion, QuestionFormProps, Question, Class, Book } from "@/types/question" // Import all from types
 
+// Define a simple Answer type to replace 'any'
+interface Answer {
+  id?: number;
+  answer_text: string;
+  is_correct: boolean;
+}
+
 export default function QuestionForm({ onSubmit, onCancel, initialData, classes = [], books = [] }: QuestionFormProps) {
   const userStr = localStorage.getItem("user");
   const user = userStr ? JSON.parse(userStr) : null;
@@ -226,7 +233,7 @@ export default function QuestionForm({ onSubmit, onCancel, initialData, classes 
           Tên Bài Học <span className="text-red-500">*</span>
           <HoverCard>
             <HoverCardTrigger><Info className="w-4 h-4 ml-1 inline" /></HoverCardTrigger>
-            <HoverCardContent>Mô tả chi tiết bài học để AI generate phù hợp. Ví dụ: "Cộng trừ trong phạm vi 10" cho Toán lớp 1.</HoverCardContent>
+            <HoverCardContent>Mô tả chi tiết bài học để AI generate phù hợp. Ví dụ: Cộng trừ trong phạm vi 10 cho Toán lớp 1.</HoverCardContent>
           </HoverCard>
         </label>
         <Textarea
@@ -351,7 +358,7 @@ export default function QuestionForm({ onSubmit, onCancel, initialData, classes 
                   <h4 className="font-bold">{q.question_text} {q.emoji}</h4>
                   {q.answers && q.answers.length > 0 && (
                     <ul className="list-disc ml-4 mt-2">
-                      {q.answers.map((ans: any, i: number) => (
+                      {q.answers.map((ans: Answer, i: number) => (
                         <li key={ans.id || i} className={ans.is_correct ? "text-green-600" : ""}>
                           {String.fromCharCode(65 + i)}. {ans.answer_text}
                         </li>
