@@ -15,6 +15,8 @@ import { Scanner } from "@yudiel/react-qr-scanner"
 import { UploadExcelModal } from "@/components/UploadExcelModal"
 import { DownloadQRButton } from "@/components/DownloadQRButton"
 import type { BeInfo } from "@/types/BeInfo"
+import Swal from "sweetalert2"
+import "sweetalert2/dist/sweetalert2.min.css"
 
 // 🔥 Fix: Thêm interface cho QR Code result
 interface QrCodeResult {
@@ -100,7 +102,26 @@ export default function PreschoolGreeting() {
         const id = idMatch[1]
         const be = beList.find((b) => b.sbd.toString() === id)
         if (be) {
-          alert(`Quét thành công! Chào ${be.name} (${be.lop})! 😊`)
+          Swal.fire({
+            title: `🎉 Xin chào ${be.name}!`,
+            html: `<p style="font-size: 20px;">Lớp: <b>${be.lop}</b></p>
+                  <p style="font-size: 18px;">Chúc bé một ngày thật vui nhé! 🌈</p>`,
+            imageUrl: be.avatar || "https://tse4.mm.bing.net/th/id/OIP.jHA1arXcapzK2cVSsCsvXQHaLt?rs=1&pid=ImgDetMain",
+            imageWidth: 150,
+            imageHeight: 150,
+            imageAlt: "Avatar của bé",
+            background: "#fffaf0",
+            color: "#444",
+            confirmButtonText: "💖 Dạ vâng!",
+            confirmButtonColor: "#ec4899",
+            showClass: {
+              popup: "animate__animated animate__zoomIn"
+            },
+            hideClass: {
+              popup: "animate__animated animate__fadeOutUp"
+            }
+          })
+
           setShowScanner(false)
           router.push(`/child/${id}`)
         } else {

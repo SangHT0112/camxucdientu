@@ -15,6 +15,17 @@ interface QuestionType {
   icon?: string;
 }
 
+interface Class {
+  id: number;
+  name: string;
+}
+
+interface Book {
+  id: number;
+  name: string;
+  class_id: number;
+}
+
 interface RawQuestion {
   id: number;
   question_text?: string;
@@ -42,6 +53,8 @@ interface User {
 export default function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([])
   const [questionTypes, setQuestionTypes] = useState<QuestionType[]>([])  // Dynamic từ API
+  const [classes, setClasses] = useState<Class[]>([])  // Thêm: Để select trong form
+  const [books, setBooks] = useState<Book[]>([])  // Thêm: Để select trong form
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -66,6 +79,18 @@ export default function QuestionsPage() {
       try {
         setLoading(true);
         setError(null);
+
+        // Fetch classes và books trước (cho form select)
+        const [classesRes, booksRes] = await Promise.all([
+          fetch("/api/classes"),
+          fetch("/api/books")
+        ]);
+        if (!classesRes.ok) throw new Error("Lỗi tải lớp học");
+        if (!booksRes.ok) throw new Error("Lỗi tải bộ sách");
+        const classesData: Class[] = await classesRes.json();
+        const booksData: Book[] = await booksRes.json();
+        setClasses(classesData);
+        setBooks(booksData);
 
         // Fetch questions
         const questionsRes = await fetch("/api/questions");
@@ -272,8 +297,15 @@ export default function QuestionsPage() {
                         }
                       : {
                           user_id: userId,  // Default for new
+                          class_id: '',  // Thêm defaults
+                          book_id: '',
+                          exercise_name: '',
+                          lesson_name: '',
+                          type: 'multiple_choice',
                         }
                   }
+                  classes={classes}
+                  books={books}
                 />
               </div>
             </Card>
