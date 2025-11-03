@@ -9,7 +9,24 @@ import Image from "next/image"
 import type { BeInfo } from "@/types/BeInfo"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
-
+import { 
+  FaMicrophone, 
+  FaMusic, 
+  FaShareAlt, 
+  FaWind, 
+  FaGamepad, 
+  FaComments, 
+  FaHeart, 
+  FaHandsHelping, 
+  FaHeadphones, 
+  FaPaintBrush, 
+  FaUsers, 
+  FaHashtag, 
+  FaCut, 
+  FaRunning,
+  FaMicrophoneAlt
+} from 'react-icons/fa'
+import { GiPartyPopper, GiLoveLetter, GiJumpingRope } from "react-icons/gi"
 interface Emotion {
   id: number
   label: string
@@ -32,10 +49,18 @@ interface EmotionLog {
   created_at: string // ISO
 }
 
+interface Action {
+  id: number;
+  action_name: string;
+  emotion_name: string;
+  icon: string;
+}
+
 export default function ChildGreeting() {
   const router = useRouter()
   const params = useParams()
   const [selectedEmotion, setSelectedEmotion] = useState<number | null>(null)
+  const [actions, setActions] = useState<Action[]>([])
   const [child, setChild] = useState<{ name: string; gender: string; lop: string; photo: string }>({
     name: "Bé yêu",
     gender: "",
@@ -48,6 +73,66 @@ export default function ChildGreeting() {
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<number | null>(null)
+
+  // Icon map để render dynamic icons từ FontAwesome
+
+  const EmojiMap: { [key: string]: string } = {
+    // Vui vẻ 😄
+    FaMicrophone: "🎤",
+    FaMusic: "🎵",
+    FaShareAlt: "🤗",
+
+    // Ngạc nhiên 😲
+    FaWind: "💨",
+    FaGamepad: "🎮",
+    FaComments: "💬",
+
+    // Xấu hổ 😳
+    FaHeart: "💖",
+    FaHandsHelping: "🤝",
+    GiTeddyBear: "🧸",
+    FaMicrophoneAlt: "🎶",
+
+    // Buồn 😢
+    FaHeadphones: "🎧",
+    FaPaintBrush: "🎨",
+    FaUsers: "👫",
+
+    // Giận dữ 😠
+    FaHashtag: "🔢",
+    FaCut: "✂️",
+    FaRunning: "🏃‍♂️",
+  }
+  
+  const getActionIcon = (iconName: string) => {
+    const emoji = EmojiMap[iconName]
+    if (emoji) {
+      return (
+        <span className="text-3xl animate-bounce-fast drop-shadow-md">
+          {emoji}
+        </span>
+      )
+    }
+    // fallback
+    return <span className="text-3xl">⭐</span>
+  }
+
+
+  
+
+  const loadActionsByEmotion = async (emotionId: number) => {
+    try {
+      const res = await fetch(`/api/actions?emotion_id=${emotionId}`)
+      if (res.ok) {
+        const data: Action[] = await res.json()
+        console.log("Danh sách hành động:", data)
+        setActions(data)
+      }
+    } catch (error) {
+      console.error("Lỗi load actions:", error)
+      setActions([])
+    }
+  }
 
   // Load user from localStorage on client-side only
   useEffect(() => {
@@ -76,6 +161,7 @@ export default function ChildGreeting() {
         setLoading(false)
       }
     }
+    
     loadEmotions()
   }, [])
 
@@ -170,7 +256,7 @@ export default function ChildGreeting() {
       console.log("Cannot select emotion, loading:", loading, "emotion exists:", !!emotions[index])
       return
     }
-
+    
     setSelectedEmotion(index)
     setIsModalOpen(true)
     console.log("Setting isModalOpen to true")
@@ -213,6 +299,9 @@ export default function ChildGreeting() {
         console.log("Daily emotions updated:", summary)
       }
 
+      // Load actions for the selected emotion
+      await loadActionsByEmotion(emotions[index].id)
+
       // Phát âm thanh
       const audioFile = emotions[index].audio
       const newAudio = new Audio(audioFile)
@@ -224,21 +313,28 @@ export default function ChildGreeting() {
     }
   }
 
+  const handleActionSelect = (action: Action) => {
+    console.log("Selected action:", action)
+    // Có thể lưu action log vào DB nếu cần (tương tự emotion log)
+    // Ví dụ: POST to /api/action_logs with { child_id, action_id, etc. }
+    
+    setIsModalOpen(false)
+    // Chuyển đến quiz sau khi chọn action
+    router.push(`/child/${params.id}/quiz`)
+  }
+
   const handleBack = () => {
     router.push("/")
   }
 
   // Chọn gradient dựa trên giới tính
-  // Chọn gradient dựa trên giới tính
-const getButtonGradient = () => {
-  if (child.gender === "Nam") {
-    return "bg-gradient-to-br from-blue-400 to-cyan-500 hover:from-blue-500 hover:to-cyan-600 text-white shadow-lg hover:shadow-xl";
-  } else {
-    return "bg-gradient-to-br from-pink-200 to-purple-300 hover:from-pink-300 hover:to-purple-400 text-[#F3E8FF] shadow-md hover:shadow-lg";
-  }
-};
-
-
+  const getButtonGradient = () => {
+    if (child.gender === "Nam") {
+      return "bg-gradient-to-br from-blue-400 to-cyan-500 hover:from-blue-500 hover:to-cyan-600 text-white shadow-lg hover:shadow-xl";
+    } else {
+      return "bg-gradient-to-br from-pink-200 to-purple-300 hover:from-pink-300 hover:to-purple-400 text-[#F3E8FF] shadow-md hover:shadow-lg";
+    }
+  };
 
   // Chọn style viền avatar dựa trên giới tính
   const getAvatarBorder = () => {
@@ -338,7 +434,6 @@ const getButtonGradient = () => {
                     height={48}
                     className="w-full h-full object-contain filter drop-shadow-md animate-bounce-fast mix-blend-multiply"
                   />
-
                 </div>
 
                 {/* Nhãn cảm xúc */}
@@ -350,7 +445,7 @@ const getButtonGradient = () => {
             ))}
           </div>
 
-          {Object.keys(dailyEmotions).length > 0 && (
+          {/* {Object.keys(dailyEmotions).length > 0 && (
             <div className="bg-pink-200/50 p-3 rounded-lg w-full max-w-md mt-2 border-2 border-pink-300">
               <p className="font-semibold mb-1 text-sm text-pink-700">Hôm nay bé cảm thấy:</p>
               <ul className="text-xs space-y-0.5 text-pink-600">
@@ -363,7 +458,7 @@ const getButtonGradient = () => {
                 ))}
               </ul>
             </div>
-          )}
+          )} */}
 
           {selectedEmotion !== null && emotions[selectedEmotion] && (
             <div className="mt-3 p-4 bg-gradient-to-r from-pink-200 to-purple-200 rounded-3xl border-4 border-purple-300 animate-in fade-in slide-in-from-bottom-4">
@@ -401,18 +496,49 @@ const getButtonGradient = () => {
                     </p>
                   </>
                 )}
-                <Button
-                  onClick={() => router.push(`/child/${params.id}/quiz`)}
-                  className={`${buttonGradient} text-white px-6 py-2 text-gray-700 rounded-full border-2 border-white`}
-                >
-                  Đố vui nào! 🎉
-                </Button>
-                <Button
-                  onClick={() => router.push("/")}
-                  className={`${buttonGradient} text-white px-6 py-2 text-gray-700  rounded-full`}
-                >
-                  Quay về trang chủ
-                </Button>
+
+                {/* Hiển thị các hành động để chọn tiếp */}
+               {actions.length > 0 ? (
+                  <>
+                    <p className="text-lg font-semibold text-purple-600 text-center mb-3">
+                      Bé muốn làm gì tiếp theo? ✨
+                    </p>
+
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 justify-items-center w-full">
+                      {actions.map((action) => (
+                        <div
+                          key={action.id}
+                          onClick={() => handleActionSelect(action)}
+                          className={`${buttonGradient} w-16 h-16 rounded-full border-2 border-white 
+                                      hover:scale-110 transition-all flex flex-col items-center 
+                                      justify-center cursor-pointer shadow-md`}
+                        >
+                          <span className="text-3xl">{getActionIcon(action.icon)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-center text-purple-600">Đang tải gợi ý...</p>
+                )}
+
+                {/* Fallback buttons nếu không có actions */}
+                {actions.length === 0 && (
+                  <>
+                    <Button
+                      onClick={() => router.push(`/child/${params.id}/quiz`)}
+                      className={`${buttonGradient} text-white px-6 py-2 text-gray-700 rounded-full border-2 border-white`}
+                    >
+                      Đố vui nào! 🎉
+                    </Button>
+                    <Button
+                      onClick={() => router.push("/")}
+                      className={`${buttonGradient} text-white px-6 py-2 text-gray-700  rounded-full`}
+                    >
+                      Quay về trang chủ
+                    </Button>
+                  </>
+                )}
               </div>
             </Dialog.Content>
           </Dialog.Portal>
