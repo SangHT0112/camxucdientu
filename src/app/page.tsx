@@ -29,7 +29,7 @@ const constraints: MediaTrackConstraints = {
 }
 
 // Nhạc nền
-const backgroundMusic = "https://res.cloudinary.com/dvvsfnmys/video/upload/v1761469025/happy-children-music_bsauuu.mp3";
+const backgroundMusic = "https://res.cloudinary.com/dvvsfnmys/video/upload/v1763037975/be-vui-hoc-hat-400270_ny3my0.mp3";
 
 export default function PreschoolGreeting() {
   const [showScanner, setShowScanner] = useState(false)

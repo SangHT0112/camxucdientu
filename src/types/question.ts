@@ -17,8 +17,8 @@ export interface QuestionFormData {
   // Fields for generation (new exercise)
   exercise_name?: string;
   type?: 'multiple_choice' | 'open_ended';
-  class_id?: number | string;
-  book_id?: number | string;
+  class_id?: string;  // Changed: string for Select value
+  book_id?: string;
   lesson_name?: string;
   num_questions?: number;
   num_answers?: number;

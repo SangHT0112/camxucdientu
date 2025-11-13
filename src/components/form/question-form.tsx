@@ -49,18 +49,42 @@ export default function QuestionForm({ onSubmit, onCancel, initialData, classes 
   const [filteredBooks, setFilteredBooks] = useState<Book[]>([]);
 
   // Effect: Filter books khi class_id thay đổi
+ // Effect: Fetch filtered books từ API khi class_id thay đổi
   useEffect(() => {
-    if (formData.class_id) {
-      const classIdNum = typeof formData.class_id === 'string' ? parseInt(formData.class_id) : formData.class_id;
-      setFilteredBooks(books.filter(b => b.class_id === classIdNum));
-      const bookIdNum = formData.book_id ? (typeof formData.book_id === 'string' ? parseInt(formData.book_id) : formData.book_id) : 0;
-      if (formData.book_id && !books.some(b => b.id === bookIdNum && b.class_id === classIdNum)) {
-        setFormData(prev => ({ ...prev, book_id: "" }));  // Reset book nếu không match class
-      }
-    } else {
-      setFilteredBooks([]);
-    }
-  }, [formData.class_id, books, formData.book_id]);
+      const fetchFilteredBooks = async () => {
+        if (!formData.class_id) {
+          setFilteredBooks([]);
+          return;
+        }
+        // Lấy class name từ classes prop
+        const selectedClass = classes.find(c => c.id === parseInt(formData.class_id || '0'));
+        if (!selectedClass) {
+          setFilteredBooks([]);
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/books?class_name=${encodeURIComponent(selectedClass.name)}`);
+          if (res.ok) {
+            const data: Book[] = await res.json();
+            setFilteredBooks(data);
+            // Reset book_id nếu không match (book_id is string)
+            const bookIdNum = parseInt(formData.book_id || '0');
+            if (formData.book_id && !data.some(b => b.id === bookIdNum)) {
+              setFormData(prev => ({ ...prev, book_id: "" }));
+            }
+          } else {
+            console.error("Error fetching filtered books");
+            setFilteredBooks([]);
+          }
+        } catch (err) {
+          console.error("Fetch error:", err);
+          setFilteredBooks([]);
+        }
+      };
+
+      fetchFilteredBooks();
+    }, [formData.class_id, classes]);  // Depend on class_id (string) and classes
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -83,10 +107,12 @@ export default function QuestionForm({ onSubmit, onCancel, initialData, classes 
     e.preventDefault()
     setError("")
 
-    // Validation cập nhật
+    // Validation cập nhật (class_id/book_id as string, but parse for check)
     if (!formData.exercise_name?.trim()) return setError("Vui lòng nhập tên bài tập")
-    if (!formData.class_id) return setError("Vui lòng chọn lớp học")
-    if (!formData.book_id) return setError("Vui lòng chọn bộ sách")
+    const classIdNum = parseInt(formData.class_id || '0');
+    if (!formData.class_id || isNaN(classIdNum)) return setError("Vui lòng chọn lớp học")
+    const bookIdNum = parseInt(formData.book_id || '0');
+    if (!formData.book_id || isNaN(bookIdNum)) return setError("Vui lòng chọn bộ sách")
     if (!formData.lesson_name?.trim()) return setError("Vui lòng nhập tên bài học")
     if (!['multiple_choice', 'open_ended'].includes(formData.type || '')) return setError("Loại bài tập không hợp lệ")
     if ((formData.num_questions || 0) < 1 || (formData.num_questions || 0) > 50) return setError("Số câu hỏi phải từ 1 đến 50")
@@ -97,11 +123,11 @@ export default function QuestionForm({ onSubmit, onCancel, initialData, classes 
     setIsLoading(true)
 
     try {
-      // Convert strings to numbers for API
-      const submitData: QuestionFormData = {
+      // Convert strings to numbers for API - No ternary needed, always parse (safe after validation)
+      const submitData: Omit<QuestionFormData, 'class_id' | 'book_id'> & { class_id: number; book_id: number } = {
         ...formData,
-        class_id: typeof formData.class_id === 'string' ? parseInt(formData.class_id) : formData.class_id,
-        book_id: typeof formData.book_id === 'string' ? parseInt(formData.book_id) : formData.book_id,
+        class_id: classIdNum,  // number from parseInt
+        book_id: bookIdNum,    // number from parseInt
         num_questions: formData.num_questions,
         num_answers: formData.num_answers,
         user_id: userId,
@@ -192,7 +218,7 @@ export default function QuestionForm({ onSubmit, onCancel, initialData, classes 
             Lớp Học <span className="text-red-500">*</span>
           </label>
           <Select 
-            value={typeof formData.class_id === 'number' ? formData.class_id.toString() : formData.class_id || ''} 
+            value={typeof formData.class_id === 'number' ? formData.class_id : formData.class_id || ''} 
             onValueChange={(val) => handleSelectChange('class_id', val)} 
             disabled={isLoading}
           >
@@ -211,7 +237,7 @@ export default function QuestionForm({ onSubmit, onCancel, initialData, classes 
             Bộ Sách <span className="text-red-500">*</span>
           </label>
           <Select 
-            value={typeof formData.book_id === 'number' ? formData.book_id.toString() : formData.book_id || ''} 
+            value={typeof formData.book_id === 'number' ? formData.book_id : formData.book_id || ''} 
             onValueChange={(val) => handleSelectChange('book_id', val)} 
             disabled={isLoading || !formData.class_id}
           >
@@ -248,9 +274,9 @@ export default function QuestionForm({ onSubmit, onCancel, initialData, classes 
 
       {/* Loại bài tập */}
       <div>
-        <label className="block text-sm font-medium mb-2">
+        <p className="block text-sm font-medium mb-2">
           Loại Bài Tập <span className="text-red-500">*</span>
-        </label>
+        </p>
         <Select value={formData.type || 'multiple_choice'} onValueChange={(val) => handleSelectChange('type', val)} disabled={isLoading}>
           <SelectTrigger>
             <SelectValue placeholder="Chọn loại" />
