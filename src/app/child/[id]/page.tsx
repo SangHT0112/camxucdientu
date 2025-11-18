@@ -60,7 +60,8 @@ export default function ChildGreeting() {
   const router = useRouter()
   const params = useParams()
   const [selectedEmotion, setSelectedEmotion] = useState<number | null>(null)
-  const [actions, setActions] = useState<Action[]>([])
+  // Thay đổi state: Lưu actions theo từng emotion ID để preload
+  const [actionsByEmotion, setActionsByEmotion] = useState<{ [emotionId: number]: Action[] }>({})
   const [child, setChild] = useState<{ name: string; gender: string; lop: string; photo: string }>({
     name: "Bé yêu",
     gender: "",
@@ -72,6 +73,7 @@ export default function ChildGreeting() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [loading, setLoading] = useState(true)
+  const [actionsLoading, setActionsLoading] = useState<{ [emotionId: number]: boolean }>({}) // Optional: Track loading per emotion nếu cần
   const [userId, setUserId] = useState<number | null>(null)
 
   // Icon map để render dynamic icons từ FontAwesome
@@ -120,18 +122,39 @@ export default function ChildGreeting() {
 
   
 
-  const loadActionsByEmotion = async (emotionId: number) => {
-    try {
-      const res = await fetch(`/api/actions?emotion_id=${emotionId}`)
-      if (res.ok) {
-        const data: Action[] = await res.json()
-        console.log("Danh sách hành động:", data)
-        setActions(data)
+  // Thay đổi: Load actions cho một emotion cụ thể (dùng từ cache)
+  const loadActionsByEmotion = (emotionId: number): Action[] => {
+    return actionsByEmotion[emotionId] || []
+  }
+
+  // New: Preload tất cả actions cho các emotions (gọi sau khi load emotions)
+  const preloadAllActions = async (emotions: Emotion[]) => {
+    const actionsMap: { [emotionId: number]: Action[] } = {}
+    
+    // Sử dụng Promise.all để fetch parallel (nhanh hơn serial)
+    const fetchPromises = emotions.map(async (emotion) => {
+      try {
+        setActionsLoading(prev => ({ ...prev, [emotion.id]: true })) // Optional: Track loading
+        const res = await fetch(`/api/actions?emotion_id=${emotion.id}`)
+        if (res.ok) {
+          const data: Action[] = await res.json()
+          console.log(`Loaded actions for ${emotion.label}:`, data)
+          actionsMap[emotion.id] = data
+        } else {
+          console.error(`Lỗi load actions cho emotion ${emotion.id}:`, res.status)
+          actionsMap[emotion.id] = []
+        }
+      } catch (error) {
+        console.error(`Lỗi load actions cho emotion ${emotion.id}:`, error)
+        actionsMap[emotion.id] = []
+      } finally {
+        setActionsLoading(prev => ({ ...prev, [emotion.id]: false })) // Optional
       }
-    } catch (error) {
-      console.error("Lỗi load actions:", error)
-      setActions([])
-    }
+    })
+
+    await Promise.all(fetchPromises)
+    setActionsByEmotion(actionsMap)
+    console.log("All actions preloaded:", actionsMap)
   }
 
   // Load user from localStorage on client-side only
@@ -152,6 +175,11 @@ export default function ChildGreeting() {
           const emotionsData: Emotion[] = await response.json()
           console.log("Loaded emotions:", emotionsData)
           setEmotions(emotionsData)
+          
+          // New: Preload actions ngay sau khi load emotions (chỉ nếu có emotions)
+          if (emotionsData.length > 0) {
+            preloadAllActions(emotionsData)
+          }
         } else {
           console.error("Lỗi load emotions từ API")
         }
@@ -299,8 +327,10 @@ export default function ChildGreeting() {
         console.log("Daily emotions updated:", summary)
       }
 
-      // Load actions for the selected emotion
-      await loadActionsByEmotion(emotions[index].id)
+      // Thay đổi: Lấy actions từ cache thay vì fetch lại (nhanh hơn)
+      const emotionId = emotions[index].id
+      const cachedActions = loadActionsByEmotion(emotionId)
+      console.log("Using cached actions:", cachedActions)
 
       // Phát âm thanh
       const audioFile = emotions[index].audio
@@ -353,6 +383,9 @@ export default function ChildGreeting() {
 
   const buttonGradient = getButtonGradient();
   const avatarStyle = getAvatarBorder();
+
+  // Helper: Lấy actions cho emotion hiện tại (dùng trong modal)
+  const currentActions = selectedEmotion !== null ? loadActionsByEmotion(emotions[selectedEmotion]?.id || 0) : []
 
   if (loading) {
     return (
@@ -497,15 +530,15 @@ export default function ChildGreeting() {
                   </>
                 )}
 
-                {/* Hiển thị các hành động để chọn tiếp */}
-               {actions.length > 0 ? (
+                {/* Hiển thị các hành động để chọn tiếp (dùng currentActions) */}
+               {currentActions.length > 0 ? (
                   <>
                     <p className="text-lg font-semibold text-purple-600 text-center mb-3">
                       Bé muốn làm gì tiếp theo? ✨
                     </p>
 
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 justify-items-center w-full">
-                      {actions.map((action) => (
+                      {currentActions.map((action) => (
                         <div
                           key={action.id}
                           onClick={() => handleActionSelect(action)}
@@ -523,7 +556,7 @@ export default function ChildGreeting() {
                 )}
 
                 {/* Fallback buttons nếu không có actions */}
-                {actions.length === 0 && (
+                {currentActions.length === 0 && (
                   <>
                     <Button
                       onClick={() => router.push(`/child/${params.id}/quiz`)}
