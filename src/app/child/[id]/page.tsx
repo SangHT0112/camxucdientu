@@ -350,7 +350,7 @@ export default function ChildGreeting() {
     
     setIsModalOpen(false)
     // Chuyển đến quiz sau khi chọn action
-    router.push(`/child/${params.id}/quiz`)
+    router.push(`/`)
   }
 
   const handleBack = () => {
@@ -550,6 +550,13 @@ export default function ChildGreeting() {
                         </div>
                       ))}
                     </div>
+
+                     <Button
+                      onClick={() => router.push("/")}
+                      className={`${buttonGradient} text-white px-6 py-2 text-gray-700  rounded-full`}
+                    >
+                      Quay về trang chủ
+                    </Button>
                   </>
                 ) : (
                   <p className="text-center text-purple-600">Đang tải gợi ý...</p>
@@ -558,12 +565,6 @@ export default function ChildGreeting() {
                 {/* Fallback buttons nếu không có actions */}
                 {currentActions.length === 0 && (
                   <>
-                    <Button
-                      onClick={() => router.push(`/child/${params.id}/quiz`)}
-                      className={`${buttonGradient} text-white px-6 py-2 text-gray-700 rounded-full border-2 border-white`}
-                    >
-                      Đố vui nào! 🎉
-                    </Button>
                     <Button
                       onClick={() => router.push("/")}
                       className={`${buttonGradient} text-white px-6 py-2 text-gray-700  rounded-full`}
