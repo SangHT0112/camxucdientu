@@ -9,24 +9,7 @@ import Image from "next/image"
 import type { BeInfo } from "@/types/BeInfo"
 import * as Dialog from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
-import { 
-  FaMicrophone, 
-  FaMusic, 
-  FaShareAlt, 
-  FaWind, 
-  FaGamepad, 
-  FaComments, 
-  FaHeart, 
-  FaHandsHelping, 
-  FaHeadphones, 
-  FaPaintBrush, 
-  FaUsers, 
-  FaHashtag, 
-  FaCut, 
-  FaRunning,
-  FaMicrophoneAlt
-} from 'react-icons/fa'
-import { GiPartyPopper, GiLoveLetter, GiJumpingRope } from "react-icons/gi"
+
 interface Emotion {
   id: number
   label: string
@@ -205,6 +188,7 @@ export default function ChildGreeting() {
         })
         if (response.ok) {
           const be: BeInfo = await response.json()
+          console.log("Loaded child from API:", be)
           if (be) {
             setChild({
               name: be.name || "Bé yêu",
@@ -230,7 +214,7 @@ export default function ChildGreeting() {
               name: be.name || "Bé yêu",
               gender: be.gender || "",
               lop: be.lop || "",
-              photo: be.avatar ? be.avatar : `/happy-${be.gender === "Nữ" ? "girl" : "boy"}-preschool.jpg`,
+              photo: be.avatar || `/happy-${(be.gender || "Nam") === "Nữ" ? "girl" : "boy"}-preschool.jpg`,
             })
           } else {
             alert("Không tìm thấy bé! Quay lại upload danh sách.")

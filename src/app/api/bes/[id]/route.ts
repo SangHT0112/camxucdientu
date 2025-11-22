@@ -9,13 +9,14 @@ interface DbBeInfo extends RowDataPacket {
   name: string
   gender: string
   age: number
-  dob: Date
+  dob: string | null  // Fix: MySQL trả string (YYYY-MM-DD), không phải Date
   lop: string
   parent: string
   phone: string
   address: string | null
   qr_base64?: string | null
-  created_at?: Date
+  created_at?: string | null  // Fix: Tương tự, string từ MySQL
+  avatar?: string | null
 }
 
 interface BeInfo {  // Frontend-friendly
@@ -32,15 +33,37 @@ interface BeInfo {  // Frontend-friendly
   address: string | null
   qrBase64?: string | null
   created_at?: string
+  avatar?: string | null
 }
 
 // Helper: Map DB row → Frontend format
-const mapToBeInfo = (row: DbBeInfo): BeInfo => ({
-  ...row,
-  dob: row.dob ? row.dob.toISOString().split('T')[0] : '',
-  qrBase64: row.qr_base64 || null,
-  created_at: row.created_at ? row.created_at.toISOString() : '',
-})
+const mapToBeInfo = (row: DbBeInfo): BeInfo => {
+  // Fix: Convert dob string → Date → YYYY-MM-DD (xử lý null/invalid)
+  let dobStr = '';
+  if (row.dob) {
+    const dobDate = new Date(row.dob);
+    if (!isNaN(dobDate.getTime())) {  // Valid date
+      dobStr = dobDate.toISOString().split('T')[0];
+    }
+  }
+
+  // Fix: created_at tương tự
+  let createdAtStr = '';
+  if (row.created_at) {
+    const createdAtDate = new Date(row.created_at);
+    if (!isNaN(createdAtDate.getTime())) {
+      createdAtStr = createdAtDate.toISOString();
+    }
+  }
+
+  return {
+    ...row,
+    dob: dobStr,
+    qrBase64: row.qr_base64 || null,
+    created_at: createdAtStr,
+    avatar: row.avatar || null,
+  }
+}
 
 export async function GET(
   request: NextRequest, 
@@ -70,7 +93,7 @@ export async function GET(
     console.log('✅ Ping OK for single be')
 
     let query = 'SELECT * FROM bes WHERE sbd = ?'
-    const paramsQuery: number[] = [sbd]
+    const paramsQuery: (number | null)[] = [sbd]  // Fix: Type an toàn hơn
     if (userId !== null) {
       query += ' AND user_id = ?'
       paramsQuery.push(userId)

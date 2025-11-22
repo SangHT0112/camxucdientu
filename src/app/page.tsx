@@ -59,6 +59,7 @@ export default function PreschoolGreeting() {
         const response = await fetch("/api/bes")
         if (response.ok) {
           const data = await response.json()
+          console.log("Loaded beList from API:", data)
           if (data.length > 0) {
             setBeList(data)
             console.log(`Đã load ${data.length} bé từ MySQL!`)
